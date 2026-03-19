@@ -160,3 +160,20 @@ seurat_oi <- SplitObject(seurat_all, split.by = "orig.ident") ##Splits one big S
 print(names(seurat_oi)) ##prints the names of the list elements.
 data_GSE183276
 ```
+Load raw single-cell RNA-seq count data and convert it into a structured Seurat object using CreateSeuratObject() in which cells were removed with fewer than 200 detected genes and remove the genes present in fewer than 3 cells. This was done to make the data more cleaner and less noisy and saved it as seurat_all with column names as "orig.ident"   "nCount_RNA"   "nFeature_RNA".      
+<img width="350" height="105" alt="image" src="https://github.com/user-attachments/assets/a0b00c21-0c4b-4cbf-89b3-48d3c6b288ad" />     
+
+The combined dataset was split into multiple Seurat objects based on orig.ident, which represents the original sample identity assigned during the experiment. This enables sample-wise handling of data, facilitating quality control, normalization, and downstream comparison across different biological conditions. The list of seurat object looks like below:    
+<img width="1345" height="170" alt="image" src="https://github.com/user-attachments/assets/65624589-ee86-45ff-804a-6d2bd3c5c7a6" />    
+
+<img width="1486" height="746" alt="image" src="https://github.com/user-attachments/assets/aa570207-0784-43df-b300-165f9e869bb3" />    
+The displayed matrix is a sparse representation of gene expression data, where rows correspond to genes and columns to individual cells. The dots (.) indicate zero or negligible expression values, meaning that most genes are not expressed in most cells. This sparsity is a defining feature of single-cell RNA-seq data, reflecting cell-type specificity and transcriptional heterogeneity.  Dots (.) represent zero expression values, highlighting the sparse nature of single-cell gene expression data. 
+One cell ≠ expresses all genes
+Most genes = OFF in a given cell
+👉 So matrix = mostly zeros → shown as .
+
+
+
+
+
+

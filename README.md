@@ -264,7 +264,23 @@ meta <- read.delim("GSE183276_Kidney_Healthy-Injury_Cell_Atlas_scCv3_Metadata_03
 meta
 ##header=the first row contains column names, stringasfactors=keeps text as character strings, not factors, check.names= keeps column names exactly as they are in the file
 ```
+<img width="1105" height="397" alt="image" src="https://github.com/user-attachments/assets/e30a6bed-e335-4b4e-8234-3eca33c619be" />    
+
 Then I loaded the sample metadata using read.delim, keeping column names and text exactly as in the file. This metadata provides key information about each sample, like patient, tissue, or condition, for annotating the Seurat objects. This is the metadata file that we downloaded in the start.
+
+# Read all the individual seurat objects
+```bash
+ ## This chunk looks inside a folder (input) and finds all files that contain single-cell data saved as Seurat objects (.rds files). Each of these files corresponds to one sample. It then loads all these Seurat objects into R and stores them together in a list, so that multiple samples can be handled at once. After loading, each Seurat object is given a meaningful name (usually based on sample) so that it is easy to identify which object belongs to which sample. Finally, it prints the names to confirm that all samples were loaded correctly.
+rds_files <- list.files(inputDir, pattern = "_seurat\\.rds$", full.names = TRUE) ##Get full paths to all Seurat RDS files in inputDir and Only files ending with "_seurat.rds" are matched
+seurat_list <- lapply(rds_files, readRDS) ##read each RDS file into R.This creates a list of Seurat objects (one per file)
+names(seurat_list) <- gsub("_seurat\\.rds$", "", basename(rds_files))  # pattern to remove  # replace with empty string  # extract filename from full path
+print(names(seurat_list)) # Print the names of the Seurat objects
+```
+<img width="1114" height="227" alt="image" src="https://github.com/user-attachments/assets/eef93fae-91c6-482f-b06b-41d557e4f1af" />    
+
+This chunk reads back all the individual .seurat.rds files we saved earlier, loading each sample separately into a list of Seurat objects. Each object is given a meaningful name based on the sample, and printing the names confirms that all samples were loaded correctly.
+
+
 
 
 

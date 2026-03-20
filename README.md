@@ -280,6 +280,28 @@ print(names(seurat_list)) # Print the names of the Seurat objects
 
 This chunk reads back all the individual .seurat.rds files we saved earlier, loading each sample separately into a list of Seurat objects. Each object is given a meaningful name based on the sample, and printing the names confirms that all samples were loaded correctly.
 
+# combining the seurat objects
+```bash
+sapply(seurat_list, function(obj) {    # For each Seurat object in the list, count how many duplicated gene names exist
+  sum(duplicated(rownames(GetAssayData(obj, layer = "counts"))))
+})
+
+# Got 0s in all samples (meaning no duplicate genes are present in any of the samples) and thus no need to run and save clean_seurat_list. Proceed with seurat_list. But because in downstream, we have 'clean_seurat_list' everywhere, we'll do
+
+clean_seurat_list <- seurat_list
+print(names(clean_seurat_list))
+# clean_seurat_list <- lapply(seurat_list, function(obj) {
+#   # Get unique genes from RNA assay
+#   counts_mat <- GetAssayData(obj, layer = "counts")
+#   unique_genes <- !duplicated(rownames(counts_mat))
+#   counts_mat_unique <- counts_mat[unique_genes, ]
+#   obj[["RNA"]] <- CreateAssayObject(counts_mat_unique)
+#   return(obj)
+# })
+```
+<img width="1116" height="595" alt="image" src="https://github.com/user-attachments/assets/a1511da7-02b5-480e-9385-0ed15153b32d" />    
+This step checks each Seurat object for duplicated gene names in the counts matrix. Since no duplicates were found, I used seurat_list as is. To keep downstream code consistent, I assigned it to clean_seurat_list, which will be used in all subsequent analyses.
+
 
 
 

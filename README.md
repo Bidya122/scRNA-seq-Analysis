@@ -258,6 +258,14 @@ In this step, we replace the internal sample IDs with their GEO GSM IDs so that 
 <img width="1118" height="444" alt="image" src="https://github.com/user-attachments/assets/5b5e73d9-2739-47f0-9647-ee1020525eea" />   
 This proves that we have all the data (49 samples) with their correct GSM IDs.
 
+# Metadata load
+```bash
+meta <- read.delim("GSE183276_Kidney_Healthy-Injury_Cell_Atlas_scCv3_Metadata_03282022.txt", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+meta
+##header=the first row contains column names, stringasfactors=keeps text as character strings, not factors, check.names= keeps column names exactly as they are in the file
+```
+Then I loaded the sample metadata using read.delim, keeping column names and text exactly as in the file. This metadata provides key information about each sample, like patient, tissue, or condition, for annotating the Seurat objects. This is the metadata file that we downloaded in the start.
+
 
 
 

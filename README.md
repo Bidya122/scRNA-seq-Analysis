@@ -302,6 +302,27 @@ print(names(clean_seurat_list))
 <img width="1116" height="595" alt="image" src="https://github.com/user-attachments/assets/a1511da7-02b5-480e-9385-0ed15153b32d" />    
 This step checks each Seurat object for duplicated gene names in the counts matrix. Since no duplicates were found, I used seurat_list as is. To keep downstream code consistent, I assigned it to clean_seurat_list, which will be used in all subsequent analyses.
 
+# Merge all Seurat objects into one because we are not doing it for per sample
+```bash
+# Update orig.ident to GSM IDs inside each Seurat object
+for (s in names(clean_seurat_list)) {
+  clean_seurat_list[[s]]$orig.ident <- s  # s is GSM ID
+}
+
+seurat_combined <- merge(clean_seurat_list[[1]], y = clean_seurat_list[-1], add.cell.ids = names(clean_seurat_list))
+unique(seurat_combined$orig.ident) # Merge all Seurat objects into a single object and prefix cell IDs with sample names
+
+setdiff(id_map, names(clean_seurat_list)) # should return 0 # Check that expected sample IDs match the loaded Seurat objects
+
+saveRDS(seurat_combined, file =  paste0(outputDir,"01_GSE183276_seurat_combined.rds")) # Save the merged Seurat object to disk
+#seurat_combined <- readRDS(file = paste0(outputDir, "01_GSE183276_seurat_combined.rds"))
+
+# Explore Combined Seurat Object}
+class(seurat_combined)            # 'Seurat'
+Assays(seurat_combined)           # (RNA) assays available in the rds
+DefaultAssay(seurat_combined)     # default/active (RNA) assay in the rds
+dim(seurat_combined)              # 29447 genes/features x 109741 cells
+```
 
 
 

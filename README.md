@@ -2,8 +2,8 @@
 Downstream single-cell RNA-seq analysis starting from an RDS Seurat object, performing dimensionality reduction, clustering, and cell-type marker discovery.
 # Dataset: GSE183276, 49 samples   [Click to view Dataset](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE183276)
 Single Cell RNA-Seq performed on kidney tissues from 15 Chronic Kidney Disease (CKD), 12 Acute Kidney Disease (AKI) and 20 healthy reference (Ref) individuals.  
-Tools Used: RStudio, Python
-*Introduction of Dataset:* ##A subset of**49 scRNA-seq samples** was analyzed from a larger kidney atlas study.
+Tools Used: RStudio, Python    
+**Introduction of Dataset:** A subset of 49 scRNA-seq samples was analyzed from a larger kidney atlas study.
 - Data type: Single-cell RNA sequencing    
 - Samples: Healthy donors and kidney disease patients    
 - Scale: High-dimensional gene expression data across thousands of cells    
@@ -171,6 +171,94 @@ The displayed matrix is a sparse representation of gene expression data, where r
 One cell ≠ expresses all genes,     
 Most genes = OFF in a given cell,       
 👉 So matrix = mostly zeros → shown as(.)        
+
+# Mapping the IDs
+```bash
+id_map <- c(
+  "AKI3010018" = "GSM5554468",
+  "AKI3010034" = "GSM5554469",
+  "AKI3010123" = "GSM5554470",
+  "AKI3010125" = "GSM5554471",
+  "AKI3210003" = "GSM5554472",
+  "AKI3210034" = "GSM5554473",
+  "AKI3210074" = "GSM5554474",
+  "AKI3310005" = "GSM5554475",
+  "AKI3310006" = "GSM5554476",
+  "AKI3410050" = "GSM5554477",
+  "AKI3410184" = "GSM5554478",
+  "AKI3410187" = "GSM5554479",
+  "DKD2710039" = "GSM5554480",
+  "DKD2810051" = "GSM5554481",
+  "DKD2910006a" = "GSM5554482",
+  "DKD2910006b" = "GSM5554483",
+  "DKD2910006c" = "GSM5554484",
+  "DKD2910010" = "GSM5554485",
+  "DKD2910011" = "GSM5554486",
+  "DKD2910012" = "GSM5554487",
+  "DKD2910013" = "GSM5554488",
+  "DKD2910016" = "GSM5554489",
+  "DKD3110001" = "GSM5554490",
+  "DKD3110035" = "GSM5554491",
+  "DKD3110040" = "GSM5554492",
+  "DKD3110042" = "GSM5554493",
+  "HCKD2910008" = "GSM5554494",
+  "HCKD3110000" = "GSM5554495",
+  "HCKD3110013" = "GSM5554496",
+  "LDPRE0181" = "GSM5554497",
+  "LDPRE0194" = "GSM5554498",
+  "LDPRE027" = "GSM5554499",
+  "LDPRE038" = "GSM5554500",
+  "LDPRE0551" = "GSM5554501",
+  "LDPRE0621" = "GSM5554502",
+  "LDPRE19025" = "GSM5554503",
+  "LDPRE1905" = "GSM5554504",
+  "LDPRE98sc" = "GSM5554505",
+  "LDSample1153EO1" = "GSM5554506",
+  "LDSample1153EO2" = "GSM5554507",
+  "LDSample1153EO3" = "GSM5554508",
+  "LDSample1157EO1" = "GSM5554509",
+  "LDSample1157EO2" = "GSM5554510",
+  "LDSample1157EO3" = "GSM5554511",
+  "LDSample1158EO1" = "GSM5554512",
+  "LDSample1158EO2" = "GSM5554513",
+  "LDSample1158EO3" = "GSM5554514",
+  "LDSample1162EO1" = "GSM5554515",
+  "LDSample1162EO2" = "GSM5554516"
+)
+```
+This chunk creates a mapping between the internal sample IDs (e.g., AKI3010018) and their corresponding GEO accession numbers (e.g., GSM5554468). I did this to ensure consistency when working with multiple datasets or metadata sources, allowing to programmatically link experimental data with publicly available information. This mapping can later be used to rename Seurat objects, merge datasets, or subset samples accurately. These GSM IDs could be found in the metadata file. 
+
+# GSM ID Mapping and Per Sample Saving
+```bash
+# Robust GSM mapping replace internal sample IDs with GEO GSM IDs
+mapped_names <- sapply(names(seurat_oi), function(x) {  # For each sample name in the Seurat object list:
+  if(x %in% names(id_map)) return(id_map[[x]])  # If sample exists in the ID map, replace with GSM ID
+  else return(x)  # keep original if no mapping found
+})
+# Rename the list elements to the mapped GSM IDs
+names(seurat_oi) <- mapped_names 
+# This ensures that each Seurat object is now labeled with its GEO accession ID,necessary for merging with downloaded metadata or reporting.
+
+seurat_list <- seurat_oi #Assign the renamed Seurat list to a new variable
+
+length(seurat_list) 
+names(seurat_list)
+
+for (s in names(seurat_list)) {  #Loop through each sample in the Seurat list to save it individually
+  saveRDS(
+    seurat_list[[s]],    # The Seurat object for the current sample
+    file = file.path(inputDir, paste0(s, "_seurat.rds"))   # File path and name 
+  ) 
+  # Saves the object as an .rds file named by the GSM ID
+  # This allows loading each sample individually later without processing the full dataset
+}
+print(names(seurat_list))  
+```
+In this step, we replace the internal sample IDs with their GEO GSM IDs so that each Seurat object has a consistent, public identifier. After renaming, we save each sample individually as a .seurat.rds file. This way, any changes or updates can be made to a single sample without affecting the rest of the dataset, making the workflow easier to manage.  
+<img width="1118" height="444" alt="image" src="https://github.com/user-attachments/assets/5b5e73d9-2739-47f0-9647-ee1020525eea" />   
+This proves that we have all the data (49 samples) with their correct GSM IDs.
+
+
 
 
 

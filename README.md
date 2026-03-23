@@ -323,7 +323,70 @@ Assays(seurat_combined)           # (RNA) assays available in the rds
 DefaultAssay(seurat_combined)     # default/active (RNA) assay in the rds
 dim(seurat_combined)              # 29447 genes/features x 109741 cells
 ```
+<img width="1371" height="328" alt="image" src="https://github.com/user-attachments/assets/93fe8732-7a4f-469c-b690-edc7958f3fc9" />    
 
+Individual Seurat objects (each representing a GSM/sample) were first annotated with their respective sample IDs by updating the orig.ident metadata. This ensures that the origin of each cell is preserved after merging. All objects were then combined into a single Seurat object using merge(), with add.cell.ids used to prefix cell barcodes with sample names to avoid duplication.    
+This step brings all cells into a unified dataset, enabling cross-sample comparison while retaining sample-level identity — which is essential for downstream analysis like batch correction, clustering, and differential expression. The final merged object contains 29,447 genes across 109,741 cells, representing the combined cellular landscape of all samples.    
+
+# Add biological condition metadata to merged Seurat object
+```bash
+# Adding 'Condition' col to the seurat object to do qc plot much better
+table(seurat_combined$orig.ident)  # Show the number of cells per sample (orig.ident)
+gsm_ids <- unique(seurat_combined$orig.ident)  # Extract unique GSM sample IDs from the merged Seurat object
+# Define the biological condition corresponding to each GSM sample
+condition_map <- c(
+ rep("AKI", 12),
+ rep("DKD", 14),
+ rep("HCKD", 3),
+ rep("Healthy", 20)
+)
+# Assign GSM IDs as names to the condition mapping vector
+names(condition_map) <- gsm_ids
+
+# Create cell-level condition vector (drop names!)
+seurat_combined$Condition <- unname(condition_map[seurat_combined$orig.ident])
+
+table(seurat_combined$Condition)    # Display the number of cells per biological condition
+sum(is.na(seurat_combined$Condition))    # Check for cells with missing (NA) condition annotations
+```
+<img width="1366" height="316" alt="image" src="https://github.com/user-attachments/assets/afd43189-4a75-4cf9-afaa-4220a6d26abe" />    
+To enable biologically meaningful comparisons, a new metadata column Condition was added to the merged Seurat object. Each sample (orig.ident, i.e., GSM ID) was mapped to its corresponding biological condition (AKI, DKD, HCKD, Healthy). This mapping was then expanded to the cell level, so that every individual cell inherits the condition of the sample it originated from.
+Basic checks were performed:    
+table(orig.ident) → verifies cell distribution across samples    
+table(Condition) → confirms correct assignment across conditions    
+sum(is.na(Condition)) → ensures no cells are missing condition labels    
+
+# Calculate QC Metrics for Seurat Object
+```bash
+head(rownames(seurat_combined), 20)  # View the first 20 row names (typically gene names) in the Seurat object
+seurat_combined[["percent.mt"]] <- PercentageFeatureSet(   # Calculate the percentage of mitochondrial genes per cell
+ seurat_combined,
+ pattern = "^MT-"
+)  ## "^MT-" means genes starting with "MT-" The result is stored in the metadata slot as "percent.mt"
+
+seurat_combined[["percent.rb"]] <- PercentageFeatureSet(  # Calculate the percentage of ribosomal genes per cell
+ seurat_combined,
+ pattern = "^RPL|^RPS"
+)  # "^RPL|^RPS" matches genes starting with "RPL" or "RPS". Stored in metadata as "percent.rb"
+
+colnames(seurat_combined@meta.data)  # Show all column names in the metadata to confirm our new columns are added
+
+summary(seurat_combined$percent.mt) 
+summary(seurat_combined$percent.rb)
+```
+<img width="1373" height="164" alt="image" src="https://github.com/user-attachments/assets/786ea519-1e80-4c10-9fed-9e26a56b3ddf" />    
+
+To assess cell quality, additional QC metrics were computed and added to the Seurat object metadata.  
+percent.mt: percentage of mitochondrial gene expression per cell  
+percent.rb: percentage of ribosomal gene expression per cell  
+These were calculated using PercentageFeatureSet() by identifying genes based on naming patterns:  
+"^MT-" → mitochondrial genes  
+"^RPL|^RPS" → ribosomal protein genes   
+Mitochondrial percentage (percent.mt): High mitochondrial gene expression is often a sign of stressed or dying cells, as damaged cells tend to leak cytoplasmic RNA and retain mitochondrial transcripts.      
+Ribosomal percentage (percent.rb): Reflects the protein synthesis activity of a cell. Extremely high values may indicate technical bias or overrepresentation of housekeeping functions.    
+The relatively wide range of mitochondrial content suggests the presence of both healthy cells (low mt%) and stressed/dying cells (high mt%). Ribosomal content also shows high variability, indicating differences in protein synthesis activity or potential technical bias across cells. These distributions highlight the need for careful threshold selection during QC filtering, rather than applying arbitrary cutoffs.    
+
+# PreQC Visualization
 
 
 

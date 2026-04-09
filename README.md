@@ -387,6 +387,77 @@ Ribosomal percentage (percent.rb): Reflects the protein synthesis activity of a 
 The relatively wide range of mitochondrial content suggests the presence of both healthy cells (low mt%) and stressed/dying cells (high mt%). Ribosomal content also shows high variability, indicating differences in protein synthesis activity or potential technical bias across cells. These distributions highlight the need for careful threshold selection during QC filtering, rather than applying arbitrary cutoffs.    
 
 # PreQC Visualization
+```bash
+# These parameters define quality control rules that help distinguish real, healthy single cells from empty droplets, dying cells, or technical artifacts.
+study_id <- "GSE183276"
+
+seurat_combined <- AddMetaData(seurat_combined, metadata = seurat_combined$orig.ident, col.name = "Sample") # Add a new metadata column named "Sample" to the Seurat object
+# This duplicates the 'orig.ident' column (original sample identity)
+
+save_violin_plots_separate <- function(      ###Generate violin + boxplots for specified QC metrics
+ seurat_obj,    #   - seurat_obj: Seurat object containing data and metadata
+ plotDir,       #   - plotDir: directory where plots will be saved
+ study_id,      #   - study_id: ID to include in file names
+ features = c("nCount_RNA", "nFeature_RNA", "percent.mt", "percent.rb")    #   - features: vector of metadata features to plot 
+) {   
+
+ if (!dir.exists(plotDir)) {                
+ dir.create(plotDir, recursive = TRUE)
+ }
+
+ meta <- seurat_obj@meta.data                   # Extract metadata from Seurat object
+ meta$sample <- as.factor(meta$orig.ident)             # Convert sample column to factor for plotting
+
+ for (feat in features) {   # Loop over each feature and generate plots
+ if (!feat %in% colnames(meta)) {
+ warning(paste("Skipping", feat, "- not found in metadata"))     # Skip the feature if it does not exist in metadata
+ next
+ }
+  # Create a violin plot with overlaid boxplot
+ p <- ggplot(meta, aes(x = sample, y = .data[[feat]])) +
+ geom_violin(trim = TRUE, fill = "steelblue", alpha = 0.7) +
+ geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.6) +
+ labs(title = feat,x = "Sample",y = feat) + 
+ theme_bw(base_size = 14) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
+ plot.title = element_text(hjust = 0.5))
+
+ ggsave(filename = file.path(plotDir,paste0(study_id, "_preQC_", feat, "_violin.png")),
+ plot = p,width = 16,height = 9,dpi = 400,bg = "white")
+ }
+}
+
+save_violin_plots_separate(seurat_combined, plotDir, study_id)  # Run the QC plotting function: generates and saves violin + boxplots for key metrics (UMI counts, gene counts, mitochondrial % and ribosomal %) for each sample before filtering
+
+# Scatter plot of nCount vs nFeature with marginal histograms
+density_scatter_plot <- function(seurat_obj, filename){     ##again a general function like above; each row = one cell
+ df <- data.frame(
+ log1p_nCount_RNA = log1p(seurat_obj$nCount_RNA),      #total RNA molecules
+ log1p_nFeature_RNA = log1p(seurat_obj$nFeature_RNA),    #no. of genes detected
+ Condition = seurat_obj$Condition                        #control vs disease (or groups)
+ )
+ 
+ p <- ggplot(df, aes(x = log1p_nCount_RNA, y = log1p_nFeature_RNA, colour = Condition)) +
+ geom_point(alpha = 0.3, size = 0.5) +
+ theme_minimal() +
+ theme(legend.position.inside = c(0.05, 0.95), legend.justification = c("left", "top"), legend.key.size = unit(0.5, 'cm')) +
+ guides(color = guide_legend(override.aes = list(size = 5))) + # 'size' here controls the symbol size
+ labs(x = "log1p(nCount_RNA)", y = "log1p(nFeature_RNA)")
+ 
+ p <- ggMarginal(p, type = "histogram", fill = "skyblue", bins = 40)
+ ggsave(filename,plot = p,width = 8,height = 10,dpi = 400,bg = "white")}
+
+density_scatter_plot(seurat_combined, file.path(plotDir, paste0(study_id, "_preQC_density-scatter.png")))
+```
+<img width="1336" height="798" alt="image" src="https://github.com/user-attachments/assets/b5012f60-10ac-4e07-bc8c-32bb7c6f3411" />    
+
+For pre-quality-control (pre-QC) assessment, I generated four main visualizations, **Violin + Boxplots** for:  
+   - `nCount_RNA` (UMI counts)  
+   - `nFeature_RNA` (genes detected per cell)  
+   - `percent.mt` (mitochondrial content)   
+   - `percent.rb` (ribosomal content)
+
+
+
 
 
 

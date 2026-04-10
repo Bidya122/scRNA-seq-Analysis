@@ -513,6 +513,49 @@ Cells were filtered based on detected gene counts (nFeature_RNA) to remove empty
 Cells with elevated mitochondrial RNA content were excluded, as high mitochondrial proportion is indicative of stressed, dying, or low-quality cells resulting from compromised membrane integrity. The mitochondrial gene fraction plot showed that most cells had low mitochondrial content, indicating good cell viability. A subset of cells exhibited elevated mitochondrial percentages, consistent with cellular stress or apoptosis. These cells were removed using a mitochondrial threshold to ensure exclusion of low-quality cells.  
 Cells with unusually high ribosomal RNA content were filtered to reduce potential technical artifacts and transcriptional bias associated with abnormal ribosomal enrichment. Ribosomal gene content remained relatively consistent across samples, suggesting minimal technical variation. However, cells with abnormally high ribosomal RNA levels were excluded to reduce potential transcriptional bias and technical artifacts.   
 
+# QC thresholds application + reporting
+```bash
+##Applies filtering thresholds to remove low-quality or abnormal cells and generates a summary table showing the effect of QC.
+study_id <- "GSE183276"
+min_features <- 200 # A cell must express at least 200 genes to be considered real. <200 --> empty droplets/cause most noise
+max_features <- 7000 # Cells with more than 7000 genes are removed. Extremely high gene counts often indicate doublets
+max_percent_mt <- 15 # Remove cells where >20% of RNA comes from mitochondria
+max_percent_rb <- 10 # Remove cells dominated by ribosomal expression. High rRNA --> low info content/technical bias
+threshold_mahalanobis <- 0.95 # Remove the worst 5% of cells that look abnormal overall (catches subtle outliers)
+
+seurat_filtered <- filter_nFeatures(seurat_combined, min_features, max_features) # Filter cells by number of features
+
+seurat_filtered <- filter_mt(seurat_filtered, max_percent_mt)  # Filter cells by mitochondrial RNA content
+
+seurat_filtered <- fil_nCounts(seurat_filtered, threshold_mahalanobis)  # Filter cells with abnormal total RNA counts (Mahalanobis distance)
+
+seurat_filtered <- filter_rb(seurat_filtered,max_percent_rb)  # Filter cells by ribosomal RNA content
+
+# Cell counts before QC
+df_pre_qc <- as.data.frame(table(seurat_combined$Sample))
+colnames(df_pre_qc) <- c("Sample_ID", "Cells_Before_QC")
+
+# Cell counts after QC
+df_post_qc <- as.data.frame(table(seurat_filtered$Sample))
+colnames(df_post_qc) <- c("Sample_ID", "Cells_After_QC")
+
+# Merge into final QC table (left join behavior)
+final_qc_table <- merge(df_pre_qc, df_post_qc, by = "Sample_ID", all.x = TRUE)
+final_qc_table
+total_cells_before_qc <- sum(final_qc_table$Cells_Before_QC, na.rm = TRUE)
+total_cells_after_qc <- sum(final_qc_table$Cells_After_QC, na.rm = TRUE)
+
+total_cells_before_qc
+total_cells_after_qc
+```
+<img width="949" height="339" alt="image" src="https://github.com/user-attachments/assets/938747a1-0227-4b67-bc83-0e09f5fcce92" />  
+
+The QC process ensures that downstream analyses (clustering, DEGs, trajectory inference) are performed only on high-quality, biologically meaningful cells, reducing technical noise and improving interpretability. 
+For nCounts_RNA, min_features = 200 → removes empty/low-quality droplets and Mahalanobis-based filtering → removes global outliers in RNA counts.   
+For the hight nFearture_count Cells with extremely high gene counts which represent doublets/multiplets. This justifies min_features = 200 and max_features = 7000.  
+High mitochondrial content indicates stressed or apoptotic cells. Cells above this threshold max_percent_mt = 15% are removed to improve biological signal clarity.  
+Excessively high values of rbRNA% suggest low informational content or technical bias hence max_percent_rb = 10%. 
+The long right tails in nCount_RNA and nFeature_RNA motivate removal of extreme outliers (doublets). The low-count region on the left supports removal of empty droplets. The spread in percent.mt and percent.rb highlights stressed or low-quality cells. Together, these distributions define the thresholds used in filtering.    
 
 
 

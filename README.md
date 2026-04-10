@@ -278,7 +278,7 @@ print(names(seurat_list)) # Print the names of the Seurat objects
 ```
 <img width="1114" height="227" alt="image" src="https://github.com/user-attachments/assets/eef93fae-91c6-482f-b06b-41d557e4f1af" />    
 
-This chunk reads back all the individual .seurat.rds files we saved earlier, loading each sample separately into a list of Seurat objects. Each object is given a meaningful name based on the sample, and printing the names confirms that all samples were loaded correctly.
+All individual Seurat objects corresponding to different samples were automatically loaded into R. Each object represents gene expression data from a single biological sample. The objects were stored in a named list structure to preserve sample identity, which is essential for downstream comparative analysis, integration, and batch effect correction. Sample names were extracted from file names to ensure traceability across the workflow.
 
 # combining the seurat objects
 ```bash
@@ -455,6 +455,63 @@ For pre-quality-control (pre-QC) assessment, I generated four main visualization
    - `nFeature_RNA` (genes detected per cell)  
    - `percent.mt` (mitochondrial content)   
    - `percent.rb` (ribosomal content)
+The violin plots show a broad distribution of nFeature_RNA and nCount_RNA, with a small subset of cells exhibiting extremely high values, suggesting potential doublets. The majority of cells had moderate gene and count values, indicating good sequencing depth.    
+The mitochondrial percentage (percent.mt) remained relatively low across most cells, suggesting minimal cell stress or apoptosis. However, a few cells with elevated mitochondrial content were observed and considered for removal.    
+Hence, Pre-QC quality assessment across all samples revealed broadly consistent distributions for nCount_RNA, nFeature_RNA, mitochondrial percentage, and ribosomal gene content. Most cells exhibited moderate gene detection and sequencing depth, indicating good overall capture efficiency. A subset of cells showed elevated RNA counts and gene numbers, suggesting potential doublets, while a small fraction of cells exhibited higher mitochondrial content, indicating possible low-quality or stressed cells. Ribosomal gene proportions remained relatively stable across samples, suggesting minimal technical variation between libraries.
+
+# Quality Control Filtering Functions for Seurat Object
+```bash
+# Remove cells with abnormal total RNA counts; automatically detects outliers
+## Defines functions to remove low-quality or outlier cells, based on RNA counts, feature counts, mitochondrial and ribosomal RNA percentages. 
+
+# Steps: 1. Extract nCount_RNA from metadata
+#   2. Compute Mahalanobis distance for each cell
+#   3. Identify outlier cells exceeding chi-squared threshold
+#   4. Return Seurat object with outliers removed
+fil_nCounts <- function(seurat_obj, threshold_mahalanobis){    ##Remove cells with abnormal total RNA counts (nCount_RNA) using Mahalanobis distance 
+ ncounts_data <- as.data.frame(seurat_obj@meta.data$nCount_RNA)    # Convert nCount_RNA to a data frame
+ colnames(ncounts_data) <- "nCount_RNA"
+ 
+# Compute Mahalanobis distance (distance from multivariate mean considering covariance
+##The Mahalanobis distance is a way to measure how far a cell is from a group of cells, taking correlations between genes into account.
+ mahalanobis_dist <- mahalanobis(x = ncounts_data, center = colMeans(ncounts_data), cov = cov(ncounts_data))
+ 
+ seurat_obj$mahal_dist_nCount <- mahalanobis_dist    # Add Mahalanobis distances to Seurat metadata
+ mahal.fil <- qchisq(threshold_mahalanobis, df = ncol(ncounts_data))   # Compute chi-squared cutoff for outlier detection
+ message(paste0("Mahalanobis threshold: ", round(mahal.fil, 3)))
+ 
+ cells_to_remove <- rownames(seurat_obj@meta.data)[seurat_obj$mahal_dist_nCount > mahal.fil]     # Identify cells exceeding threshold
+ message(paste0("Removing ", length(cells_to_remove), " cells (outliers by nCount_RNA)"))
+ 
+ return(subset(seurat_obj, cells = setdiff(colnames(seurat_obj), cells_to_remove)))    # Return Seurat object with outlier cells removed
+}
+
+# Filter low (empty droplets or poor capture) & high (likely doublets) gene cells
+## Remove cells with too few or too many detected genes
+#   - seurat_obj: Seurat object
+#   - min_feat: minimum number of features required (filters low-quality/empty droplets)
+#   - max_feat: maximum number of features allowed (filters likely doublets)
+filter_nFeatures <- function(seurat_obj, min_feat, max_feat, ...) {
+ return(subset(seurat_obj, subset = nFeature_RNA > min_feat & nFeature_RNA < max_feat))
+}
+
+# Filter high mitochondrial RNA- Remove cells with high mitochondrial RNA content
+# Rationale: High percent.mt often indicates stressed or dying cells
+filter_mt <- function(seurat_obj, max_mt) {
+ return(subset(seurat_obj, subset = percent.mt < max_mt))
+}
+
+# Filter high ribosomal RNA- Remove cells with high ribosomal RNA content
+# Rationale: Extremely high ribosomal RNA may indicate technical artifacts
+filter_rb <- function(seurat_obj, max_rb) {
+ return(subset(seurat_obj, subset = percent.rb < max_rb))
+}
+```
+A multi-layered quality control strategy was implemented combining multivariate outlier detection and biologically informed thresholds. Mahalanobis distance was used to identify global outliers, while gene count, mitochondrial percentage, and ribosomal content filters were applied to remove low-quality, stressed, or technically biased cells. This approach ensures robust retention of biologically meaningful single-cell profiles while minimizing technical noise.      
+To identify globally aberrant cells, a multivariate outlier detection approach using Mahalanobis distance was applied on nCount_RNA. This method accounts for covariance structure in the dataset and identifies cells that deviate significantly from the population distribution. Cells exceeding a chi-square–based threshold were considered potential technical artifacts or doublets and were removed. The nCount_RNA distribution plot in PreQC revealed the presence of cells with extreme RNA content values, suggesting potential doublets or technical artifacts. To robustly capture such deviations, a Mahalanobis distance-based outlier detection was applied instead of a simple univariate threshold. This allows identification of cells that deviate from the global distribution of RNA counts.   
+Cells were filtered based on detected gene counts (nFeature_RNA) to remove empty droplets (low gene counts) and potential doublets (abnormally high gene counts), ensuring retention of high-quality single-cell transcriptomes. The nFeature_RNA distribution plot showed a clear central population with low-gene and high-gene outliers. Low gene counts were interpreted as empty droplets or poor-quality cells, while high gene counts likely represented doublets. Based on this distribution, minimum and maximum feature thresholds were defined to retain high-confidence single-cell profiles.    
+Cells with elevated mitochondrial RNA content were excluded, as high mitochondrial proportion is indicative of stressed, dying, or low-quality cells resulting from compromised membrane integrity. The mitochondrial gene fraction plot showed that most cells had low mitochondrial content, indicating good cell viability. A subset of cells exhibited elevated mitochondrial percentages, consistent with cellular stress or apoptosis. These cells were removed using a mitochondrial threshold to ensure exclusion of low-quality cells.  
+Cells with unusually high ribosomal RNA content were filtered to reduce potential technical artifacts and transcriptional bias associated with abnormal ribosomal enrichment. Ribosomal gene content remained relatively consistent across samples, suggesting minimal technical variation. However, cells with abnormally high ribosomal RNA levels were excluded to reduce potential transcriptional bias and technical artifacts.   
 
 
 

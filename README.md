@@ -454,7 +454,7 @@ For pre-quality-control (pre-QC) assessment, I generated four main visualization
    - `nCount_RNA` (UMI counts)  
    - `nFeature_RNA` (genes detected per cell)  
    - `percent.mt` (mitochondrial content)   
-   - `percent.rb` (ribosomal content)
+   - `percent.rb` (ribosomal content)    
 The violin plots show a broad distribution of nFeature_RNA and nCount_RNA, with a small subset of cells exhibiting extremely high values, suggesting potential doublets. The majority of cells had moderate gene and count values, indicating good sequencing depth.    
 The mitochondrial percentage (percent.mt) remained relatively low across most cells, suggesting minimal cell stress or apoptosis. However, a few cells with elevated mitochondrial content were observed and considered for removal.    
 Hence, Pre-QC quality assessment across all samples revealed broadly consistent distributions for nCount_RNA, nFeature_RNA, mitochondrial percentage, and ribosomal gene content. Most cells exhibited moderate gene detection and sequencing depth, indicating good overall capture efficiency. A subset of cells showed elevated RNA counts and gene numbers, suggesting potential doublets, while a small fraction of cells exhibited higher mitochondrial content, indicating possible low-quality or stressed cells. Ribosomal gene proportions remained relatively stable across samples, suggesting minimal technical variation between libraries.
@@ -556,6 +556,71 @@ For the hight nFearture_count Cells with extremely high gene counts which repres
 High mitochondrial content indicates stressed or apoptotic cells. Cells above this threshold max_percent_mt = 15% are removed to improve biological signal clarity.  
 Excessively high values of rbRNA% suggest low informational content or technical bias hence max_percent_rb = 10%. 
 The long right tails in nCount_RNA and nFeature_RNA motivate removal of extreme outliers (doublets). The low-count region on the left supports removal of empty droplets. The spread in percent.mt and percent.rb highlights stressed or low-quality cells. Together, these distributions define the thresholds used in filtering.    
+# Save the summary file QC metrics
+```bash
+qc_metrics_file <- file.path(outputDir, paste0(study_id, "_QC_metrics.csv"))
+write.csv(final_qc_table, qc_metrics_file, row.names = FALSE)
+cat("Saved QC summary table to:", qc_metrics_file, "\n")
+```
+<img width="161" height="433" alt="image" src="https://github.com/user-attachments/assets/bd542ab4-1498-4aff-881b-c87a20fd5041" /> 
+This QC file makes it clear about the dataset after the QC filters. Quality control filtering significantly reduced the number of cells across samples, retaining approximately 5–10% of high-quality cells. This indicates the presence of substantial low-quality or stressed cells in the raw dataset, which were removed based on feature counts, RNA counts, and mitochondrial content. A few samples showed extremely low retention, suggesting either poor initial quality or overly stringent filtering thresholds.    
+
+# Post QC Visualization
+```bash
+##Generates violin plots and scatter plots for QC metrics after filtering, allowing visual inspection of cell quality.
+study_id <- "GSE183276"
+
+save_violin_plots_separate <- function(seurat_obj,plotDir,study_id,features = c("nCount_RNA", "nFeature_RNA", "percent.mt", "percent.rb")) 
+
+{
+ # Ensure output directory exists
+ if (!dir.exists(plotDir)) {
+ dir.create(plotDir, recursive = TRUE)
+ }
+
+ meta <- seurat_obj@meta.data    # Extract metadata for plotting
+ meta$sample <- as.factor(meta$orig.ident)      # Create a factor for sample identity (used for x-axis)
+
+ for (feat in features) {         # Loop through features and generate plots
+ if (!feat %in% colnames(meta)) {     
+ warning(paste("Skipping", feat, "- not found in metadata"))                  # Skip features not found in metadata
+ next 
+ }
+  # Create violin plot with overlaid boxplot
+ p <- ggplot(meta, aes(x = sample, y = .data[[feat]])) +
+ geom_violin(trim = TRUE, fill = "steelblue", alpha = 0.7) +
+ geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.6) +
+ labs(title = feat, x = "Sample", y = feat) +
+ theme_bw(base_size = 14) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
+ plot.title = element_text(hjust = 0.5))
+
+ ggsave(filename = file.path(plotDir,paste0(study_id, "_postQC_", feat, "_violin.png")),
+ plot = p, width = 16, height = 9, dpi = 400, bg = "white" ) }
+}
+
+save_violin_plots_separate(seurat_filtered, plotDir, study_id)
+
+# Scatter plot of nCount vs nFeature with marginal histograms
+density_scatter_plot <- function(seurat_obj, filename){
+ df <- data.frame(
+ log1p_nCount_RNA = log1p(seurat_obj$nCount_RNA),
+ log1p_nFeature_RNA = log1p(seurat_obj$nFeature_RNA),
+ Condition = seurat_obj$Condition
+ )
+ 
+ p <- ggplot(df, aes(x = log1p_nCount_RNA, y = log1p_nFeature_RNA, colour = Condition)) +
+ geom_point(alpha = 0.3, size = 0.5) +
+ theme_minimal() +
+ theme(legend.position.inside = c(0.05, 0.95), legend.justification = c("left", "top"), legend.key.size = unit(0.5, 'cm')) +
+ guides(color = guide_legend(override.aes = list(size = 5))) + # 'size' here controls the symbol size
+ labs(x = "log1p(nCount_RNA)", y = "log1p(nFeature_RNA)")
+ 
+ p <- ggMarginal(p, type = "histogram", fill = "skyblue", bins = 40)
+ ggsave(filename,plot = p,width = 8,height = 10, dpi = 400, bg = "white")
+}
+
+density_scatter_plot(seurat_filtered, file.path(plotDir, paste0(study_id, "_postQC_density-scatter.png")))
+```
 
 
 

@@ -630,6 +630,62 @@ density_scatter_plot(seurat_filtered, file.path(plotDir, paste0(study_id, "_post
 
 Post-quality control filtering resulted in a marked improvement in data quality. Cells with low gene counts were effectively removed, leading to a more compact and biologically meaningful distribution of detected features (nFeature_RNA). Similarly, cells with extremely low transcript counts (nCount_RNA) were excluded, eliminating long-tailed distributions associated with low-quality or empty droplets. Additionally, cells exhibiting high mitochondrial gene expression (percent.mt), indicative of cellular stress or apoptosis, were largely removed. Overall, the filtering process enriched for high-quality, transcriptionally active cells suitable for downstream analysis. This indicates that the retained cells represent biologically meaningful transcriptional profiles rather than technical artifacts. 
 
+# Keeping only protein coding gene
+```bash
+## Restrict Seurat Object to Protein-Coding Genes
+## Keeps only protein-coding genes prior to normalization and inspects the filtered Seurat object.
+protein_coding_genes <- readLines(file.path(inputDir, "Protein_coding_genes.txt"))
+
+## subsetting a Seurat object by features (genes), not by cells before normalization
+seurat_filtered <- subset(seurat_filtered, features = protein_coding_genes)
+
+####  Explore Filtered Seurat Object after QC Filter  ####
+class(seurat_filtered)            # Seurat class
+Assays(seurat_filtered)           # assays available in the rds
+DefaultAssay(seurat_filtered)     # default/active assay in the rds
+dim(seurat_filtered)# 16442 genes/features x 5405 cells
+```
+<img width="528" height="215" alt="image" src="https://github.com/user-attachments/assets/053fadf4-af5d-46b1-89af-e31760f21b46" />
+
+The dataset was restricted to protein-coding genes to reduce transcriptional noise and improve biological interpretability. A curated list of protein-coding genes was used to subset the Seurat object at the feature level, while retaining all cells. This step ensured that downstream analyses focused on functionally relevant genes. I got this list from ensemble.
+
+# Download the GEO metadata.csv file
+```bash
+library(GEOquery)
+gse <- getGEO("GSE183276", GSEMatrix = TRUE)
+metadata <- pData(gse[[1]])
+colnames(metadata)
+setwd("D://Bidya Work/single/GSE183276")
+write.csv(metadata, "GSE183276_metadata.csv", row.names = TRUE)
+```
+# Merge this GEO metadata file into seurat object
+```bash
+metadata <- read.csv("D://Bidya Work/single/GSE183276/GSE183276_metadata.csv", header = TRUE, row.names = 1)
+metadata
+# Add GEO metadata to seurat metadata slot}
+# Extract current Seurat metadata and keep barcodes
+seurat_meta <- seurat_filtered@meta.data
+seurat_meta$barcode <- rownames(seurat_meta)  # store barcodes as a column. why? coz merge() will shuffle rows and remove rownames so we temporarily save sample IDs
+colnames(seurat_meta)
+colnames(metadata)
+head(metadata)
+
+# Merge by sample <-> geo_accession
+merged_meta <- merge(seurat_meta, metadata, by.x = "Sample", by.y = "geo_accession", all.x = TRUE)   #Join based on sample ID
+
+# Restore barcodes as rownames
+rownames(merged_meta) <- merged_meta$barcode   
+merged_meta$barcode <- NULL 
+
+# Assign back to Seurat object
+seurat_filtered@meta.data <- merged_meta
+```
+<img width="1453" height="235" alt="image" src="https://github.com/user-attachments/assets/92da2365-18bd-4071-ad36-3a9d7a2d3843" />    
+
+<img width="1462" height="214" alt="image" src="https://github.com/user-attachments/assets/d14253d1-9c90-40f0-ae15-e622ff7c6bfb" />    
+
+
+
 
 
 

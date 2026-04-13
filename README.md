@@ -450,6 +450,9 @@ density_scatter_plot(seurat_combined, file.path(plotDir, paste0(study_id, "_preQ
 ```
 <img width="1336" height="798" alt="image" src="https://github.com/user-attachments/assets/b5012f60-10ac-4e07-bc8c-32bb7c6f3411" />    
 
+<img width="795" height="966" alt="image" src="https://github.com/user-attachments/assets/76562d77-b695-444f-999c-b4deb0ffd1ea" />
+
+
 For pre-quality-control (pre-QC) assessment, I generated four main visualizations, **Violin + Boxplots** for:  
    - `nCount_RNA` (UMI counts)  
    - `nFeature_RNA` (genes detected per cell)  
@@ -621,6 +624,15 @@ density_scatter_plot <- function(seurat_obj, filename){
 
 density_scatter_plot(seurat_filtered, file.path(plotDir, paste0(study_id, "_postQC_density-scatter.png")))
 ```
+<img width="883" height="519" alt="image" src="https://github.com/user-attachments/assets/1ff82556-3f5f-45cf-9adc-088d8020111a" />    
+
+<img width="797" height="962" alt="image" src="https://github.com/user-attachments/assets/6d16d497-969a-4aac-90ec-4b772b5e5eb2" />    
+
+Post-quality control filtering resulted in a marked improvement in data quality. Cells with low gene counts were effectively removed, leading to a more compact and biologically meaningful distribution of detected features (nFeature_RNA). Similarly, cells with extremely low transcript counts (nCount_RNA) were excluded, eliminating long-tailed distributions associated with low-quality or empty droplets. Additionally, cells exhibiting high mitochondrial gene expression (percent.mt), indicative of cellular stress or apoptosis, were largely removed. Overall, the filtering process enriched for high-quality, transcriptionally active cells suitable for downstream analysis. This indicates that the retained cells represent biologically meaningful transcriptional profiles rather than technical artifacts. 
+
+
+
+
 
 
 

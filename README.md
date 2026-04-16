@@ -760,6 +760,58 @@ num_PCs = <img width="98" height="72" alt="image" src="https://github.com/user-a
 <img width="1205" height="905" alt="image" src="https://github.com/user-attachments/assets/b97fe759-c710-44dd-ab17-b495d6ee02eb" />
 The Elbow plot indicated a sharp decline in variance explained within the first ~15–20 principal components, followed by a plateau. However, 35 principal components were retained for downstream analysis to ensure sufficient capture of biological variability, as supported by cumulative variance analysis.
 
+# Total variance explained across the top 35 PCs
+```bash
+pca_stdev <- seurat_processed[["pca"]]@stdev  # Extract the standard deviation for each principal component (PC) from the PCA reduction object.
+pca_var_explained <- (pca_stdev^2) / sum(pca_stdev^2) * 100  # Calculate the percentage of variance explained by each PC. Variance explained is computed as the squared standard deviation and divided by the total variance, multiplied by 100.
+total_var<- sum(pca_var_explained[1:35])  # Compute the total variance explained by the top 35 PCs. This helps quantify how much biological variation is retained when using 35 dimensions for downstream analyses.
+
+cat("Total variance explained by top PCs:", round(total_var, 2), "%\n")   # Print the total variance explained by the top PCs.
+##60–85% variance explained is very typical
+##100% is neither possible nor desirable (that would mean you kept all the noise)
+##80% is a healthy balance between signal retention and noise reduction
+```
+<img width="530" height="69" alt="image" src="https://github.com/user-attachments/assets/22230aee-d2b9-4848-8071-c62089d42181" />
+
+The cumulative variance explained by the top 35 principal components (PCs) was calculated using Seurat to assess the proportion of total variability captured after dimensionality reduction. This analysis confirmed that the selected PCs capture a substantial proportion of the total variance. In single-cell RNA-seq analysis, retaining approximately 60–85% of total variance is considered optimal, as it balances biological signal retention with noise reduction. Therefore, 35 principal components were retained for downstream analysis, ensuring that sufficient biological variation is preserved for clustering and visualization.    
+
+# Perform UMAP & Clustering on unintegrated data and UMAP plot save. 
+```bash
+library(glue)
+seurat_processed <- RunUMAP(seurat_processed, dims = 1:35)  # UMAP provides a low-dimensional (2D) representation of the data that preserves local neighborhood structure for visualization.
+seurat_processed <- FindNeighbors(seurat_processed, dims = 1:35, reduction = "pca", graph.name = "pca_nn") # Construct a shared nearest-neighbor (SNN) graph using PCA embeddings. This graph represents cell–cell similarity and is used for clustering.
+
+seurat_processed <- FindClusters(seurat_processed, resolution = 0.8,graph.name = "pca_nn", cluster.name = "pca_clusters")  # Perform graph-based clustering on the PCA-derived neighbor graph. The resolution parameter controls cluster granularity (higher values yield more clusters). 
+n_clusters <- length(unique(seurat_processed$pca_clusters))  # Count and report the number of identified clusters.
+cat(glue("Clustering complete. Number of clusters: {n_clusters}\n"))  # 19 clusters found
+table(seurat_processed$pca_clusters)
+```
+<img width="896" height="637" alt="image" src="https://github.com/user-attachments/assets/0f59acec-7081-439b-9aaf-d5b60ecd3923" />    
+
+table(seurat_processed$pca_clusters)
+<img width="633" height="39" alt="image" src="https://github.com/user-attachments/assets/d7a2905b-96b7-4a6b-a15a-37250e5ded88" />    
+
+```bash
+# UMAP colored by PCA-based clusters, shows the cell types, so cells that are similar stay close together in 2D. Each cluster (represented by a color) groups cells with similar overall gene expression patterns.
+
+umap_clusters <- DimPlot(
+  seurat_processed,
+  reduction = "umap",
+  group.by = "pca_clusters",
+  label = TRUE
+) +
+  labs(title = "UMAP: PCA-Based Clusters")
+
+ggsave(filename = file.path(plotDir, paste0(study_id, "_UMAP_pca_clusters.png")), plot = umap_clusters,  width = 8,  height = 6,  bg = "white")
+```
+<img width="1205" height="908" alt="image" src="https://github.com/user-attachments/assets/b0464fb1-16b1-44a2-b3f9-dc3f75613933" />    
+
+UMAP visualization was performed using the top 35 principal components to project high-dimensional gene expression data into two-dimensional space using Seurat. The resulting plot revealed 19 distinct clusters, corresponding to transcriptionally distinct cell populations. Clusters were observed to be well-separated and compact, indicating effective grouping of cells with similar gene expression profiles. Minimal overlap between clusters further supports the robustness of the clustering approach. These observations validate the selection of 35 principal components and a clustering resolution of 0.8, confirming that the chosen parameters effectively capture biologically meaningful variation while minimizing noise.    
+
+
+
+
+
 
 
 

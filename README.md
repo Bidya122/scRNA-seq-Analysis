@@ -737,8 +737,28 @@ This step reduces the complexity of high-dimensional gene expression data while 
 ```bash
 custom_colors <- c("AKI"="purple3", "DKD"="darkorange3", "HCKD"="green4", "Healthy"="blue3")
 ```
+# Principal Component Selection and Variance Analysis_Elbow Plot
+```bash
+# Get the standard deviation for each PC then get the variance explained by each PC, then calculate the cumulative variance
+stdev <- seurat_processed[["pca"]]@stdev # Extract the standard deviation of each principal component (PC) from the PCA reduction object.
+var_explained <- stdev^2 / sum(stdev^2) # Calculate the proportion of variance explained by each PC. Variance explained is the squared standard deviation of each PC divided by the total variance across all PCs.
+cum_var <- cumsum(var_explained)  # Compute cumulative variance explained across PCs.
+pca_var_df <- data.frame(PC = 1:length(stdev),  Variance = var_explained,  CumulativeVariance = cum_var) # Store variance metrics in a data frame for inspection and reporting.
+pca_var_df
+num_PCs <- min(which(cum_var >= 0.95)) # Identify the minimum number of PCs required to explain at least 95% of the total variance in the dataset.
+num_PCs
 
+elbow_plot <- ElbowPlot(seurat_processed, ndims = 100, reduction = 'pca')+
+  labs(title = "PCA Elbow Plot for Dimensionality Selection")
 
+ggsave(file.path(plotDir, paste0(study_id, "_ElbowPlot.png")),
+       elbow_plot, width = 8, height = 6, bg = 'white')
+```
+<img width="981" height="445" alt="image" src="https://github.com/user-attachments/assets/68bcee07-2217-44bd-80d0-e29c8edd663d" />    
+num_PCs = <img width="98" height="72" alt="image" src="https://github.com/user-attachments/assets/3fcb0f59-36ff-4613-bb70-1fa98b4e20ca" />    
+
+<img width="1205" height="905" alt="image" src="https://github.com/user-attachments/assets/b97fe759-c710-44dd-ab17-b495d6ee02eb" />
+The Elbow plot indicated a sharp decline in variance explained within the first ~15–20 principal components, followed by a plateau. However, 35 principal components were retained for downstream analysis to ensure sufficient capture of biological variability, as supported by cumulative variance analysis.
 
 
 

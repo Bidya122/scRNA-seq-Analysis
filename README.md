@@ -813,7 +813,6 @@ head(seurat_processed@meta.data, 3)
 ```
 <img width="1506" height="177" alt="image" src="https://github.com/user-attachments/assets/2755691d-d081-4670-9e56-71dd5f236bc4" />    
 
-
 # Clustering by condition
 ```bash
 # UMAP colored by condition (if available in metadata) 

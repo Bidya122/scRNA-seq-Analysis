@@ -683,6 +683,58 @@ seurat_filtered@meta.data <- merged_meta
 <img width="1453" height="235" alt="image" src="https://github.com/user-attachments/assets/92da2365-18bd-4071-ad36-3a9d7a2d3843" />    
 
 <img width="1462" height="214" alt="image" src="https://github.com/user-attachments/assets/d14253d1-9c90-40f0-ae15-e622ff7c6bfb" />    
+So, both in both the files, seurat_meta and the GEO metadata file there is a key difference. The seurat meta file is cell level and the GEO meta file has sample level data. Trick is to map the cells as samples. so in seurat_meta$Sample is same as GSE183276_metadata$geo_accession. So both these need to be linked. So first we stored the barcodes and then merged it, restored the rownames as they are cell barcodes. 
+
+# Save the Seurat Object
+```bash
+saveRDS(seurat_filtered,file = file.path(outputDir, "02_GSE183276_seurat_qc_filtered.rds"))
+```
+ # Normalization and Scaling, Standard Workflow
+ ```bash
+# Normalize gene expression values for each cell by total expression, multiply by a scale factor (default 10,000), and log-transform. This makes expression levels comparable across cells.
+cat("Normalizing data using LogNormalize method (scale factor = 10,000)...\n")
+seurat_processed <- NormalizeData(seurat_filtered,
+                                 normalization.method = "LogNormalize")  # What percentage of total RNA does each gene contribute in this cell?
+
+# Identify highly variable genes across cells using the VST method. These genes capture the most biological signal and are used for downstream analyses.
+seurat_processed <- FindVariableFeatures(seurat_processed, selection.method = "vst", nfeatures = 2500)
+seurat_processed <- ScaleData(seurat_processed)  # Scale and center the data so that each gene has mean = 0 and variance = 1. This ensures that highly expressed genes do not dominate PCA.
+
+seurat_processed <- RunPCA(seurat_processed, dims=1:100, npcs = 100) # Perform Principal Component Analysis (PCA) for dimensionality reduction. PCA is run on the scaled expression values of variable genes. Here, up to 100 PCs are computed to capture major sources of variation.
+```
+<img width="965" height="429" alt="image" src="https://github.com/user-attachments/assets/2b24c898-a645-4778-987c-80ac63677906" />    
+<img width="845" height="426" alt="image" src="https://github.com/user-attachments/assets/54d94511-e2b8-4124-92ef-691881d9a68c" />
+<img width="919" height="399" alt="image" src="https://github.com/user-attachments/assets/2b7075a7-531e-48ec-a0c0-10ca016af197" />    
+
+*Normalization* - Gene expression data were normalized using the LogNormalize method from the Seurat package. During this step, raw UMI counts for each cell were scaled by the total expression, multiplied by a factor of 10,000, and log-transformed. This ensures comparability of gene expression across cells with differing sequencing depths. Normalization was performed across multiple data layers (e.g., counts.1, counts.2, counts.3), with successful completion indicated by progress bars reaching 100% for each layer.
+
+*Identification of Variable Genes* - Highly variable genes (HVGs) were identified using the variance stabilizing transformation (VST) method.   
+For each data layer:  
+Gene-wise mean expression and variance were computed  
+Variance was standardized and clipped to reduce the effect of outliers  
+A subset of the most variable genes was selected for downstream analysis  
+The progress output (0–100%) confirms successful computation of gene variances and standardized variance across all layers. 
+
+*Data Scaling* - Following identification of highly variable genes, the dataset was scaled using the ScaleData function from Seurat. During this step:  
+Gene expression values were centered (mean = 0)  
+Expression values were scaled (variance = 1)  
+This standardization ensures that genes with high absolute expression levels do not dominate downstream analyses, allowing biologically meaningful variation to drive dimensionality reduction.  
+
+*Dimensionality Reduction using PCA* - Principal Component Analysis (PCA) was performed on the scaled expression matrix of the selected highly variable genes.  
+A total of 100 principal components (PCs) were computed, PCA captures the major sources of variation in the dataset. Each PC represents a combination of genes contributing to a specific pattern of variation across cells.   
+This step reduces the complexity of high-dimensional gene expression data while preserving biologically relevant signals.    
+
+| Step                 | Parameter    | Meaning                               |
+| -------------------- | ------------ | ------------------------------------- |
+| NormalizeData        | LogNormalize | Converts counts → relative expression |
+| FindVariableFeatures | vst          | Finds biologically variable genes     |
+| FindVariableFeatures | 2500         | Number of genes used downstream       |
+| ScaleData            | default      | Standardizes gene expression          |
+| RunPCA               | npcs = 100   | Computes 100 variation axes           |
+| RunPCA               | dims = 1:100 | (Mostly redundant here)               |
+
+
+
 
 
 

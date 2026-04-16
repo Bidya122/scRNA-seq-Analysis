@@ -733,6 +733,11 @@ This step reduces the complexity of high-dimensional gene expression data while 
 | RunPCA               | npcs = 100   | Computes 100 variation axes           |
 | RunPCA               | dims = 1:100 | (Mostly redundant here)               |
 
+# Add custom colors for Conditions in metadata
+```bash
+custom_colors <- c("AKI"="purple3", "DKD"="darkorange3", "HCKD"="green4", "Healthy"="blue3")
+```
+
 
 
 

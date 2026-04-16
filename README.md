@@ -806,7 +806,27 @@ ggsave(filename = file.path(plotDir, paste0(study_id, "_UMAP_pca_clusters.png"))
 ```
 <img width="1205" height="908" alt="image" src="https://github.com/user-attachments/assets/b0464fb1-16b1-44a2-b3f9-dc3f75613933" />    
 
-UMAP visualization was performed using the top 35 principal components to project high-dimensional gene expression data into two-dimensional space using Seurat. The resulting plot revealed 19 distinct clusters, corresponding to transcriptionally distinct cell populations. Clusters were observed to be well-separated and compact, indicating effective grouping of cells with similar gene expression profiles. Minimal overlap between clusters further supports the robustness of the clustering approach. These observations validate the selection of 35 principal components and a clustering resolution of 0.8, confirming that the chosen parameters effectively capture biologically meaningful variation while minimizing noise.    
+UMAP visualization was performed using the top 35 principal components to project high-dimensional gene expression data into two-dimensional space using Seurat. The resulting plot revealed 19 distinct clusters, corresponding to transcriptionally distinct cell populations. Clusters were observed to be well-separated and compact, indicating effective grouping of cells with similar gene expression profiles. Minimal overlap between clusters further supports the robustness of the clustering approach. These observations validate the selection of 35 principal components and a clustering resolution of 0.8, confirming that the chosen parameters effectively capture biologically meaningful variation while minimizing noise. 
+
+```bash
+head(seurat_processed@meta.data, 3)
+```
+<img width="1506" height="177" alt="image" src="https://github.com/user-attachments/assets/2755691d-d081-4670-9e56-71dd5f236bc4" />    
+
+
+# Clustering by condition
+```bash
+# UMAP colored by condition (if available in metadata) 
+umap_condition <- DimPlot( seurat_processed, reduction = "umap", group.by = "Condition" ) + labs(title = "UMAP: Condition") 
+ggsave( filename = file.path(plotDir, paste0(study_id, "_UMAP_condition.png")), plot = umap_condition, width = 8, height = 6, bg = "white" )
+```
+<img width="1206" height="905" alt="image" src="https://github.com/user-attachments/assets/0c307d50-e681-49ef-9235-5b43ddea7de9" />    
+
+To assess the influence of experimental conditions on clustering, UMAP visualization was colored by sample condition (AKI, DKD, HCKD, and Healthy) using Seurat. Cells from different conditions were observed to be well distributed across clusters, with no clear condition-specific segregation. Each cluster contained a mixture of cells from multiple conditions. This indicates that the clustering is primarily driven by underlying transcriptional identity (cell types) rather than condition-specific effects. These results suggest minimal batch or condition-driven bias, confirming the robustness of the clustering approach. The absence of condition-specific clustering suggests that downstream differential expression analysis can be performed within clusters to identify condition-associated transcriptional changes.    
+
+
+
+
 
 
 

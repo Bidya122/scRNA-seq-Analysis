@@ -950,6 +950,28 @@ p
 
 I visualized the uncorrected UMAP embeddings colored by both sample identity and biological condition (Tumor vs Normal) to assess the presence of batch effects and underlying biological structure. The sample-wise distribution showed substantial overlap across samples, suggesting minimal batch-driven separation. Additionally, condition-based visualization indicated that biological differences were already captured in the uncorrected space. Despite the apparent low batch effect, Harmony integration was performed to remove any subtle technical variation and ensure robust downstream clustering and biological interpretation.    
 
+# visualizing post-integration (Harmony-corrected) UMAP
+```bash
+#harmony_processed <- RunUMAP(harmony_processed, reduction = "harmony", dims = 1:30)
+p2 <-DimPlot(harmony_processed, reduction = "umap", group.by = "Condition") + ggtitle("Harmony") 
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_Harmony_condition.png"), width = 8, height = 6, dpi = 600)
+p2
+
+p <- DimPlot(harmony_processed, reduction = "umap", group.by = "Sample") + ggtitle("Harmony") +  NoLegend()
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_Harmony_sample.png"), width = 7, height = 6, dpi = 600)
+p
+
+umap_hcoords <- Embeddings(harmony_processed, "umap")
+write.csv(umap_hcoords, file="GSE183276_umap_coordinates.csv")
+```
+<img width="430" height="606" alt="image" src="https://github.com/user-attachments/assets/be4c451f-b38e-4543-9e8f-383fc0eb269a" />
+
+Harmony-corrected UMAP embeddings were visualized to assess the effectiveness of batch correction and preservation of biological structure. Condition-based visualization (Tumor vs Normal) demonstrated that biological differences were retained after integration. Sample-wise visualization showed improved mixing of cells across samples, indicating successful removal of batch effects. Notably, the overall UMAP structure remained similar before and after integration, suggesting that the dataset exhibited minimal batch-driven variation and that Harmony correction did not distort the underlying biological signal. UMAP coordinates were also exported to enable reproducibility and downstream analyses.    
+
+<img width="569" height="601" alt="image" src="https://github.com/user-attachments/assets/36ca1c4b-4917-4c9a-9dad-6e9b2f5ff479" />    
+
+UMAP coordinates derived from Harmony-corrected embeddings were exported for each cell. These coordinates represent a two-dimensional projection (UMAP_1 and UMAP_2) of the high-dimensional gene expression space, enabling visualization of transcriptional similarity between cells. Cells with similar expression profiles are positioned closer together, while distinct populations are separated in the embedding. The two axes do not correspond to specific genes but capture the major sources of variation in the dataset in a reduced-dimensional space. Each row corresponds to a single cell identified by its unique barcode, facilitating reproducible downstream analysis and integration with external tools such as Scanpy.    
+
 
 
 

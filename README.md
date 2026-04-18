@@ -850,6 +850,91 @@ writeH5AD(sce, file = paste0(outputDir, "03_GSE183276_seurat_pca_umap.h5ad")) # 
 
 The processed Seurat object was converted to a SingleCellExperiment after joining assay layers to ensure all gene expression data (raw and normalized) were aligned correctly. This preserves biologically relevant information (~16K genes across ~5.4K cells), including cell metadata and PCA/UMAP embeddings for studying tumor heterogeneity in OSCC. The data was then exported to H5Seurat and H5AD formats to enable flexible downstream analysis across R (Seurat/Bioconductor) and Python (Scanpy).    
 
+# Run Harmony & Perform Clustering on Harmony integrated data
+```bash
+# Run Harmony to integrate data across batches (here, "Sample" is the batch variable)
+# Harmony adjusts PCA embeddings to remove batch effects while preserving biological variation
+harmony_processed <- RunHarmony(seurat_processed, c("Sample"), plot_convergence = TRUE)
+
+# Compute UMAP based on Harmony-corrected embeddings (low-dimensional visualization)
+# Using the first 50 Harmony dimensions
+harmony_processed <- RunUMAP(harmony_processed, reduction = "harmony", dims = 1:50)
+
+# Construct a nearest-neighbor graph from Harmony embeddings for clustering
+harmony_processed <- FindNeighbors(harmony_processed, reduction = "harmony", dims = 1:50, graph.name = "harmony_nn")
+
+# Perform graph-based clustering on the Harmony-corrected neighbor graph
+# The resolution parameter controls the number of clusters (higher = more clusters)
+harmony_processed <- FindClusters(harmony_processed, graph.name = "harmony_nn", resolution = 0.8, group.name = "Harmony_clusters")
+length(unique(harmony_processed$seurat_clusters))
+
+#found 20 clusters
+
+saveRDS(harmony_processed, file = paste0(outputDir,"04_GSE183276_harmony_corrected.rds"))
+harmony_processed <- readRDS(file = paste0(outputDir, "04_GSE183276_harmony_corrected.rds"))
+
+merged1 = JoinLayers(harmony_processed) 
+sce_harmony <- as.SingleCellExperiment(merged1, assay = "RNA")
+
+dim(sce_harmony)
+assayNames(sce_harmony)
+reducedDimNames(sce_harmony)
+head(colData(sce_harmony),2)
+
+outputDir <- "D:/Bidya Work/single/GSE183276/output"
+h5seurat_name1 <- "04_GSE183276_harmony_corrected.h5seurat"
+h5ad_name1 <- "04_GSE183276_harmony_corrected.h5ad"
+
+SaveH5Seurat(
+  object = harmony_processed,
+  filename = file.path(outputDir, h5seurat_name1),
+  overwrite = TRUE,
+  version = "3"
+)
+
+writeH5AD(sce_harmony, file = paste0(outputDir,  "04_GSE183276_harmony_corrected.h5ad"))
+```
+<img width="379" height="471" alt="image" src="https://github.com/user-attachments/assets/0b3b406e-7c9d-4148-9646-83908481880e" />
+<img width="1322" height="775" alt="image" src="https://github.com/user-attachments/assets/99b5aa5c-91f5-42ee-a377-2469cdfc2fdc" />
+Harmony convergence plot shows a steady decrease in the objective function across iterations, indicating effective removal of batch effects. The plateau at later steps confirms convergence, suggesting that further correction does not significantly improve integration. Each point represents the value of the Harmony objective function at a given iteration step during batch correction. The progressive decrease in these values indicates reduction of batch effects across samples. The plateau at later steps shows convergence, meaning further iterations do not significantly improve integration.    
+
+Although clustering was not strongly driven by experimental condition, technical batch effects arising from sample-specific variation may still influence the data. To address this, Harmony integration was applied using “Sample” as the batch variable.
+
+Harmony was applied to the processed Seurat object to correct for batch effects across samples (using the “Sample” metadata), ensuring that downstream analysis reflects biological variation rather than technical differences. The corrected embeddings were then used to compute a UMAP projection (using the first 50 dimensions) for low-dimensional visualization of cell populations. A k-nearest neighbor graph was constructed in the Harmony space to capture cell–cell similarity, followed by graph-based clustering (resolution = 0.8), which identified 20 distinct transcriptional clusters. The processed object was saved for reproducibility and later reloaded, after which it was converted into a SingleCellExperiment format to enable compatibility with Bioconductor tools. Basic structure and metadata were inspected to verify integrity, and finally, the dataset was exported in both H5Seurat and H5AD formats to support cross-platform analysis in R and Python environments.
+
+# Understanding Harmony
+```bash
+p1 <- DimPlot(
+  seurat_processed,
+  group.by = "Sample",
+  shuffle = TRUE,
+  pt.size = 0.5
+) + NoLegend()
+
+
+p2 <- DimPlot(
+  harmony_processed,
+  group.by = "Sample",
+  shuffle = TRUE,
+  pt.size = 0.5
+) + NoLegend()
+
+ggsave(file.path(plotDir, "before_harmony.png"), plot = p1, width = 8, height = 7, dpi = 300)
+ggsave(file.path(plotDir, "after_harmony.png"), plot = p2, width = 8, height = 7, dpi = 300)
+
+p3 <- DimPlot(harmony_processed, group.by = "seurat_clusters", label = TRUE)
+ggsave(file.path(plotDir, "clusters.png"), plot = p3, width = 6, height = 5, dpi = 300)
+```
+<img width="763" height="820" alt="image" src="https://github.com/user-attachments/assets/b9d4028a-d7f6-4f7e-b8a3-729db8151fa3" />   
+
+To correct for potential sample-specific batch effects, Harmony integration was applied using “Sample” as the batch variable.  
+UMAP visualization before integration showed partial segregation of cells by sample, indicating technical variation influencing clustering.  
+After Harmony correction, cells from different samples were well mixed across clusters, suggesting successful removal of batch effects while preserving biological structure.    
+Subsequent graph-based clustering identified ~20 distinct cell populations, representing transcriptionally defined cell types or states within the dataset.  
+These clusters form the basis for downstream biological interpretation, including cell type annotation and condition-specific differential expression analysis.    
+
+
+
 
 
 

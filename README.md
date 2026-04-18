@@ -823,6 +823,34 @@ ggsave( filename = file.path(plotDir, paste0(study_id, "_UMAP_condition.png")), 
 
 To assess the influence of experimental conditions on clustering, UMAP visualization was colored by sample condition (AKI, DKD, HCKD, and Healthy) using Seurat. Cells from different conditions were observed to be well distributed across clusters, with no clear condition-specific segregation. Each cluster contained a mixture of cells from multiple conditions. This indicates that the clustering is primarily driven by underlying transcriptional identity (cell types) rather than condition-specific effects. These results suggest minimal batch or condition-driven bias, confirming the robustness of the clustering approach. The absence of condition-specific clustering suggests that downstream differential expression analysis can be performed within clusters to identify condition-associated transcriptional changes.    
 
+# Save the unintegrated Seurat Object
+```bash
+saveRDS(seurat_processed, file = paste0(outputDir,"03_GSE183276_seurat_pca_umap.rds"))
+#seurat_processed <- readRDS(file = paste0(outputDir, "03_GSE183276_seurat_pca_umap.rds"))
+#seurat_processed contains Gene expression matrix (genes × cells), Cell clusters (tumor subtypes, immune cells, etc.), Metadata (sample info, condition), Dimensional reductions (PCA, UMAP)
+
+merged = JoinLayers(seurat_processed) # Join layers in the Seurat object (e.g., counts, normalized data, scaled data). Combines multiple assay layers into one unified structure
+sce <- as.SingleCellExperiment(merged, assay = "RNA")  # Convert the Seurat object to a SingleCellExperiment (SCE) object
+# This allows usage of Bioconductor tools and compatibility with other R workflows
+
+dim(sce) #16442  5405
+assayNames(sce)
+reducedDimNames(sce)
+head(colData(sce),2)
+
+outputDir <-  "D:/Bidya Work/single/GSE183276/output"
+h5seurat_name <- "03_GSE183276_seurat_pca_umap.h5seurat"
+h5ad_name <- "03_GSE183276_seurat_pca_umap.h5ad"
+
+SaveH5Seurat(object = seurat_processed, filename = file.path(outputDir, h5seurat_name), overwrite = TRUE, version = "3")  # Save Seurat object in H5Seurat format (efficient storage for large datasets)
+
+writeH5AD(sce, file = paste0(outputDir, "03_GSE183276_seurat_pca_umap.h5ad")) # Save SCE object in H5AD format (AnnData, used in Python / Scanpy)
+```
+<img width="1442" height="392" alt="image" src="https://github.com/user-attachments/assets/2df6d45f-cd71-4f4a-bd9a-d60980b726d9" />
+
+The processed Seurat object was converted to a SingleCellExperiment after joining assay layers to ensure all gene expression data (raw and normalized) were aligned correctly. This preserves biologically relevant information (~16K genes across ~5.4K cells), including cell metadata and PCA/UMAP embeddings for studying tumor heterogeneity in OSCC. The data was then exported to H5Seurat and H5AD formats to enable flexible downstream analysis across R (Seurat/Bioconductor) and Python (Scanpy).    
+
+
 
 
 

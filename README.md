@@ -933,6 +933,24 @@ After Harmony correction, cells from different samples were well mixed across cl
 Subsequent graph-based clustering identified ~20 distinct cell populations, representing transcriptionally defined cell types or states within the dataset.  
 These clusters form the basis for downstream biological interpretation, including cell type annotation and condition-specific differential expression analysis.    
 
+# Dimention reduction plot on PCA
+```bash
+##Visualize uncorrected cell clusters on UMAP colored by Sample and Condition, and save the plots
+p <- DimPlot(seurat_processed, reduction = "umap", group.by = "Sample") + ggtitle("Uncorrected") +  NoLegend()
+  ggtitle("Uncorrected")
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_RawPCA_sample.png"), width = 7, height = 6, dpi = 600)
+p
+
+p <-DimPlot(seurat_processed, reduction = "umap", group.by = "Condition") +
+  ggtitle("Uncorrected")
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_RawPCA_condition.png"), width = 8, height = 6, dpi = 600)
+p
+```
+<img width="428" height="622" alt="image" src="https://github.com/user-attachments/assets/72e271e2-cc2c-42f8-866e-b78b5abae970" />   
+
+I visualized the uncorrected UMAP embeddings colored by both sample identity and biological condition (Tumor vs Normal) to assess the presence of batch effects and underlying biological structure. The sample-wise distribution showed substantial overlap across samples, suggesting minimal batch-driven separation. Additionally, condition-based visualization indicated that biological differences were already captured in the uncorrected space. Despite the apparent low batch effect, Harmony integration was performed to remove any subtle technical variation and ensure robust downstream clustering and biological interpretation.    
+
+
 
 
 

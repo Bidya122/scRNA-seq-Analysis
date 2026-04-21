@@ -972,7 +972,91 @@ Harmony-corrected UMAP embeddings were visualized to assess the effectiveness of
 
 UMAP coordinates derived from Harmony-corrected embeddings were exported for each cell. These coordinates represent a two-dimensional projection (UMAP_1 and UMAP_2) of the high-dimensional gene expression space, enabling visualization of transcriptional similarity between cells. Cells with similar expression profiles are positioned closer together, while distinct populations are separated in the embedding. The two axes do not correspond to specific genes but capture the major sources of variation in the dataset in a reduced-dimensional space. Each row corresponds to a single cell identified by its unique barcode, facilitating reproducible downstream analysis and integration with external tools such as Scanpy.    
 
+# KNN-Based Batch Mixing Function Definition
+```bash
+##what we did above with umap harmony and all, was just visualising it but here in this chunk we are measuring it by KNN. UMAP provides qualitative visualization, but to objectively evaluate batch correction, we computed KNN-based batch mixing scores before and after Harmony.
 
+# Compute the fraction of nearest neighbors from the same batch before and after Harmony integration, then combine results for visualization as a bar plot
+library(ggplot2)   
+library(FNN)    # for nearest neighbor calculations
+# Computes the mean fraction of k-nearest neighbors (KNN) that belong to the same batch
+# Arguments:
+#   seu       : Seurat object
+#   batch_var : Column in metadata specifying batch/sample
+#   reduction : Dimensionality reduction to use (PCA or Harmony)
+#   dims      : Dimensions to use from reduction
+#   k         : Number of neighbors for KNN
+compute_knn_batch_mixing <- function(
+    seu,
+    batch_var,
+    reduction = "pca",
+    dims = 1:50,
+    k = 20
+){
+  
+# Check if the batch column exists in metadata(We need this to know which batch each cell belongs to)
+  if (!batch_var %in% colnames(seu@meta.data)) {
+    stop(paste0("Metadata column '", batch_var, "' not found in seu@meta.data"))
+  }
+  
+   # # Check if the required dimensional reduction (PCA/Harmony) exists. If not, create it from scratch
+  if (!reduction %in% Reductions(seu)) {
+    message("[INFO] PCA not found. Running Normalize → HVG → Scale → PCA")
+    seu <- NormalizeData(seu, verbose = FALSE)     # Normalize gene expression (make cells comparable)
+    seu <- FindVariableFeatures(seu, selection.method = "vst", nfeatures = 3000)    # Select important genes (highly variable genes)
+    seu <- ScaleData(seu, verbose = FALSE)     # Scale data (center and standardize expression values)
+    seu <- RunPCA(seu, npcs = max(dims), verbose = FALSE)   # Run PCA to reduce dimensionality (convert genes → coordinates)
+  }
+  
+# Extract coordinates of each cell from PCA or Harmony space(Each cell becomes a point in multi-dimensional space)
+  emb <- Embeddings(seu, reduction = reduction)[, dims, drop = FALSE]  
+# Find k nearest neighbors for each cell(who are the closest cells in expression space)
+   nn  <- FNN::get.knn(emb, k = k)$nn.index
+# Get batch label for each cell(which sample/batch each cell belongs to)  
+   labs <- seu@meta.data[[batch_var]]
+  
+   
+# For each cell:Check how many of its neighbors belong to the same batch
+  same <- sapply(seq_len(nrow(nn)), function(i){
+# Compare neighbor batch labels with the cell’s own batch. Calculate fraction of neighbors from same batch
+     mean(labs[nn[i,]] == labs[i], na.rm = TRUE)
+  })
+# Create a dataframe with: batch label + same-batch fraction for each cell  
+  df <- data.frame(batch = labs, frac_same_batch = same)
+  
+  # Compute average same-batch fraction for each batch(final summary per batch)
+  aggregate(frac_same_batch ~ batch, df, mean)
+}
+
+# Simple bar plot showing mean same-batch fraction per batch
+plot_knn_batch_mixing <- function(mix_df){
+  ggplot(mix_df, aes(x = batch, y = frac_same_batch)) +
+    geom_col(fill = "steelblue") +
+    labs(
+      title = "Batch Mixing",
+      x = "Batch",
+      y = "Mean same-batch fraction (higher = stronger batch effect)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+p_batch <- plot_knn_batch_mixing(mix_df)
+
+ggsave(
+  filename = file.path(plotDir, "BatchMixing.png"),
+  plot = p_batch,
+  width = 14,
+  height = 5,
+  dpi = 600
+)
+```
+After preprocessing and generating the initial PCA-based representation of the data, I observed potential batch-driven separation across samples. To address this, we applied Harmony integration using the Sample metadata as the batch variable, allowing us to correct for technical variation while preserving underlying biological signals. Following integration, I recomputed the neighborhood graph and performed clustering using the Harmony-corrected embeddings to ensure that downstream structure reflected biology rather than batch. We then visualized the data using UMAP both before (PCA-based) and after (Harmony-based) correction, coloring cells by sample and condition. Which, I have shown in the previous step.     
+While the UMAP suggested improved mixing across batches, visual inspection alone can be subjective and potentially misleading. Therefore, to make a more objective decision about the effectiveness of batch correction, we implemented a KNN-based batch mixing metric. This approach quantifies, for each cell, the fraction of its nearest neighbors that belong to the same batch, providing a direct numerical measure of batch effect. We computed this metric in PCA space (representing the uncorrected structure) and in Harmony space (representing the corrected structure), keeping parameters consistent to ensure a fair comparison. The results were then combined and visualized as a comparative bar plot, enabling us to assess whether Harmony meaningfully reduced batch-driven clustering across samples.
+
+<img width="1718" height="638" alt="image" src="https://github.com/user-attachments/assets/f4289e84-8059-4e04-9796-62c9e04b3996" />    
+
+Bar plot showing the mean fraction of same-batch nearest neighbors for each sample in PCA space (before batch correction). Higher values indicate stronger batch effects, meaning cells preferentially cluster with cells from the same sample rather than mixing across samples. Several samples exhibit high same-batch fractions, suggesting substantial batch-driven structure in the data prior to integration. To get a comparative analysis, I plotted the before and after results of Harmony integration with computing the fraction of its nearest neighbors that belong to the same batch, providing a direct numerical measure of batch effect.    
 
 
 

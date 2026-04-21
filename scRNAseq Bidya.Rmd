@@ -1,0 +1,944 @@
+---
+title: "scRNA_seq_Analysis_"
+author: "Bidya Mohanty"
+date: "2026-02-01"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  pdf_document: default
+---
+
+
+
+```{installation of packages}
+## Check R and Bioconductor versions
+getRversion()
+BiocManager::version()
+
+## Install core CRAN packages for scRNA-seq analysis
+install.packages(c("Seurat","SeuratDisk","dplyr","R.utils","ggplot2","ggExtra","RColorBrewer","openxlsx","scales","HGNChelper","dittoSeq","harmony"))
+
+## Install remotes to allow installation of packages from GitHub
+## (required here to install SeuratDisk)
+## NOTE (Windows): If this step fails, make sure RTools is installed
+## and restart R before re-running the command.
+install.packages("remotes")
+
+## Install SeuratDisk from GitHub
+remotes::install_github("mojaveazure/seurat-disk")
+
+## Install rlang (needed by ggplot2 and tidyverse)
+install.packages("rlang")
+
+## Check whether make is available (from RTools on Windows)
+Sys.which("make")
+
+## Install jsonlite from source (requires RTools)
+install.packages("jsonlite", type = "source")
+
+## Reinstall ggplot2 to match updated dependencies
+install.packages("ggplot2")
+
+## Reinstall dittoSeq after dependency updates
+BiocManager::install("dittoSeq")
+
+## Reinstall SeuratDisk from GitHub
+remotes::install_github("mojaveazure/seurat-disk")
+
+## Load key packages to confirm installation
+library(rlang)
+library(ggplot2)
+library(dittoSeq)
+library(SeuratDisk)
+
+## ---------------------------------------------------------
+## Install Bioconductor single-cell infrastructure packages
+## This produced permission warnings on Windows
+## ---------------------------------------------------------
+
+BiocManager::install(c("SingleCellExperiment","batchelor","zellkonverter"))
+
+## If above doesn't work, Install the same packages into the user library
+## (alternative to running R as administrator)
+BiocManager::install(c("SingleCellExperiment", "batchelor", "zellkonverter"),
+  lib = Sys.getenv("R_LIBS_USER"))
+
+## Install HDF5 support for AnnData / zellkonverter
+install.packages("hdf5r")
+
+## Install SummarizedExperiment (core Bioconductor class)
+BiocManager::install("SummarizedExperiment")
+
+## Load remaining packages
+library(SummarizedExperiment)
+library(hdf5r)
+BiocManager::install("anndataR")
+BiocManager::install("rhdf5")
+```
+
+
+```{r load packages}
+## Final package load test
+library(rlang)
+library(ggplot2)
+library(Seurat)
+library(SeuratDisk)
+library(dplyr)
+library(R.utils)
+library(ggExtra)
+library(RColorBrewer)
+library(openxlsx)
+library(scales)
+library(HGNChelper)
+library(dittoSeq)
+library(harmony)
+library(SingleCellExperiment)
+library(batchelor)
+library(zellkonverter)
+library(hdf5r)
+library(anndataR)
+library(rhdf5)
+```
+
+```{dataset_download} 
+##downloaded directly or using commands on terminal
+wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE183nnn/GSE183276/suppl/GSE183276_Kidney_Healthy-Injury_Cell_Atlas_scCv3_Counts_03282022.RDS.gz
+https://ftp.ncbi.nlm.nih.gov/geo/series/GSE183nnn/GSE183276/suppl/GSE183276%5FKidney%5FHealthy%2DInjury%5FCell%5FAtlas%5FscCv3%5FMetadata%5F03282022.txt.gz
+```
+
+```{r Define the directories}
+inputDir <- "D:/Bidya Work/single/GSE183276/input"
+outputDir <- "D:/Bidya Work/single/GSE183276/output"
+plotDir <- "D:/Bidya Work/single/GSE183276/plots"
+```
+
+```{r}
+library(Seurat)
+library(SeuratDisk)
+library(dplyr)
+library(R.utils)  
+library(ggplot2)
+library(ggExtra)
+library(RColorBrewer)
+library(openxlsx)
+library(dplyr)
+library(scales)
+library(HGNChelper)
+library(dittoSeq)
+library(harmony)
+library(batchelor)
+library(zellkonverter)
+library(SingleCellExperiment)
+```
+
+```{r dataset load} 
+##readRDS reads the RDS file. Basically we are telling it to read it the way its written and hand it to us in R. This step loads raw scRNA-seq counts, removes obvious low-quality genes and cells, and organizes individual kidney cells into a structured object for downstream quality control and biological analysis.
+data_GSE183276 <- readRDS("GSE183276_Kidney_Healthy-Injury_Cell_Atlas_scCv3_Counts_03282022.RDS") ##reads file and saves it as an object
+class(data_GSE183276) ##tells the class of the object
+
+dim(data_GSE183276) # rows(genes)37080 columns(cells)109741
+
+seurat_all <- CreateSeuratObject(counts = data_GSE183276, project = "GSE183276", min.cells = 3, min.features = 200) ##wraps raw counts into a seurat object counts=raw UMI count matrix, project=sets the project name, min.cells=remove genes detected in fewer than 3 cells, min.features=remove cells with fewer than 200 detected genes
+
+colnames(seurat_all@meta.data) ##Lists cell-level metadata columns
+seurat_oi <- SplitObject(seurat_all, split.by = "orig.ident") ##Splits one big Seurat object into a list of Seurat objects,Each element corresponds to one value of orig.ident
+print(names(seurat_oi)) ##prints the names of the list elements.
+data_GSE183276
+```
+
+
+```{r mapping ids}
+id_map <- c(
+  "AKI3010018" = "GSM5554468",
+  "AKI3010034" = "GSM5554469",
+  "AKI3010123" = "GSM5554470",
+  "AKI3010125" = "GSM5554471",
+  "AKI3210003" = "GSM5554472",
+  "AKI3210034" = "GSM5554473",
+  "AKI3210074" = "GSM5554474",
+  "AKI3310005" = "GSM5554475",
+  "AKI3310006" = "GSM5554476",
+  "AKI3410050" = "GSM5554477",
+  "AKI3410184" = "GSM5554478",
+  "AKI3410187" = "GSM5554479",
+  "DKD2710039" = "GSM5554480",
+  "DKD2810051" = "GSM5554481",
+  "DKD2910006a" = "GSM5554482",
+  "DKD2910006b" = "GSM5554483",
+  "DKD2910006c" = "GSM5554484",
+  "DKD2910010" = "GSM5554485",
+  "DKD2910011" = "GSM5554486",
+  "DKD2910012" = "GSM5554487",
+  "DKD2910013" = "GSM5554488",
+  "DKD2910016" = "GSM5554489",
+  "DKD3110001" = "GSM5554490",
+  "DKD3110035" = "GSM5554491",
+  "DKD3110040" = "GSM5554492",
+  "DKD3110042" = "GSM5554493",
+  "HCKD2910008" = "GSM5554494",
+  "HCKD3110000" = "GSM5554495",
+  "HCKD3110013" = "GSM5554496",
+  "LDPRE0181" = "GSM5554497",
+  "LDPRE0194" = "GSM5554498",
+  "LDPRE027" = "GSM5554499",
+  "LDPRE038" = "GSM5554500",
+  "LDPRE0551" = "GSM5554501",
+  "LDPRE0621" = "GSM5554502",
+  "LDPRE19025" = "GSM5554503",
+  "LDPRE1905" = "GSM5554504",
+  "LDPRE98sc" = "GSM5554505",
+  "LDSample1153EO1" = "GSM5554506",
+  "LDSample1153EO2" = "GSM5554507",
+  "LDSample1153EO3" = "GSM5554508",
+  "LDSample1157EO1" = "GSM5554509",
+  "LDSample1157EO2" = "GSM5554510",
+  "LDSample1157EO3" = "GSM5554511",
+  "LDSample1158EO1" = "GSM5554512",
+  "LDSample1158EO2" = "GSM5554513",
+  "LDSample1158EO3" = "GSM5554514",
+  "LDSample1162EO1" = "GSM5554515",
+  "LDSample1162EO2" = "GSM5554516"
+)
+```
+
+```{r GSM ID mapping and per-sample saving}
+# Robust GSM mapping replace internal sample IDs with GEO GSM IDs
+mapped_names <- sapply(names(seurat_oi), function(x) {  # For each sample name in the Seurat object list:
+  if(x %in% names(id_map)) return(id_map[[x]])  # If sample exists in the ID map, replace with GSM ID
+  else return(x)  # keep original if no mapping found
+})
+# Rename the list elements to the mapped GSM IDs
+names(seurat_oi) <- mapped_names 
+# This ensures that each Seurat object is now labeled with its GEO accession ID,necessary for merging with downloaded metadata or reporting.
+
+seurat_list <- seurat_oi #Assign the renamed Seurat list to a new variable
+
+length(seurat_list) 
+names(seurat_list)
+
+for (s in names(seurat_list)) {  #Loop through each sample in the Seurat list to save it individually
+  saveRDS(
+    seurat_list[[s]],    # The Seurat object for the current sample
+    file = file.path(inputDir, paste0(s, "_seurat.rds"))   # File path and name 
+  ) 
+  # Saves the object as an .rds file named by the GSM ID
+  # This allows loading each sample individually later without processing the full dataset
+}
+print(names(seurat_list))  
+```
+
+```{r Metadata load}
+meta <- read.delim("GSE183276_Kidney_Healthy-Injury_Cell_Atlas_scCv3_Metadata_03282022.txt", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+meta
+##header=the first row contains column names, stringasfactors=keeps text as character strings, not factors, check.names= keeps column names exactly as they are in the file
+```
+
+```{r Read all the individual seurat objects}
+ ## This chunk looks inside a folder (input) and finds all files that contain single-cell data saved as Seurat objects (.rds files). Each of these files corresponds to one sample. It then loads all these Seurat objects into R and stores them together in a list, so that multiple samples can be handled at once. After loading, each Seurat object is given a meaningful name (usually based on sample) so that it is easy to identify which object belongs to which sample. Finally, it prints the names to confirm that all samples were loaded correctly.
+rds_files <- list.files(inputDir, pattern = "_seurat\\.rds$", full.names = TRUE) ##Get full paths to all Seurat RDS files in inputDir and Only files ending with "_seurat.rds" are matched
+seurat_list <- lapply(rds_files, readRDS) ##read each RDS file into R.This creates a list of Seurat objects (one per file)
+names(seurat_list) <- gsub("_seurat\\.rds$", "", basename(rds_files))  # pattern to remove  # replace with empty string  # extract filename from full path
+print(names(seurat_list)) # Print the names of the Seurat objects
+```
+
+```{r combining the seurat objects} 
+sapply(seurat_list, function(obj) {    # For each Seurat object in the list, count how many duplicated gene names exist
+  sum(duplicated(rownames(GetAssayData(obj, layer = "counts"))))
+})
+
+# Got 0s in all samples (meaning no duplicate genes are present in any of the samples) and thus no need to run and save clean_seurat_list. Proceed with seurat_list. But because in downstream, we have 'clean_seurat_list' everywhere, we'll do
+
+clean_seurat_list <- seurat_list
+print(names(clean_seurat_list))
+# clean_seurat_list <- lapply(seurat_list, function(obj) {
+#   # Get unique genes from RNA assay
+#   counts_mat <- GetAssayData(obj, layer = "counts")
+#   unique_genes <- !duplicated(rownames(counts_mat))
+#   counts_mat_unique <- counts_mat[unique_genes, ]
+#   obj[["RNA"]] <- CreateAssayObject(counts_mat_unique)
+#   return(obj)
+# })
+```
+
+```{r Merge all Seurat objects into one because we are not doing it for per sample}
+# Update orig.ident to GSM IDs inside each Seurat object
+for (s in names(clean_seurat_list)) {
+  clean_seurat_list[[s]]$orig.ident <- s  # s is GSM ID
+}
+
+seurat_combined <- merge(clean_seurat_list[[1]], y = clean_seurat_list[-1], add.cell.ids = names(clean_seurat_list))
+unique(seurat_combined$orig.ident) # Merge all Seurat objects into a single object and prefix cell IDs with sample names
+
+setdiff(id_map, names(clean_seurat_list)) # should return 0 # Check that expected sample IDs match the loaded Seurat objects
+
+saveRDS(seurat_combined, file =  paste0(outputDir,"01_GSE183276_seurat_combined.rds")) # Save the merged Seurat object to disk
+#seurat_combined <- readRDS(file = paste0(outputDir, "01_GSE183276_seurat_combined.rds"))
+
+# Explore Combined Seurat Object}
+class(seurat_combined)            # 'Seurat'
+Assays(seurat_combined)           # (RNA) assays available in the rds
+DefaultAssay(seurat_combined)     # default/active (RNA) assay in the rds
+dim(seurat_combined)              # 29447 genes/features x 109741 cells
+```
+
+```{r Add biological condition metadata to merged Seurat object}
+# Adding 'Condition' col to the seurat object to do qc plot much better
+table(seurat_combined$orig.ident)  # Show the number of cells per sample (orig.ident)
+gsm_ids <- unique(seurat_combined$orig.ident)  # Extract unique GSM sample IDs from the merged Seurat object
+# Define the biological condition corresponding to each GSM sample
+condition_map <- c(
+ rep("AKI", 12),
+ rep("DKD", 14),
+ rep("HCKD", 3),
+ rep("Healthy", 20)
+)
+# Assign GSM IDs as names to the condition mapping vector
+names(condition_map) <- gsm_ids
+
+# Create cell-level condition vector (drop names!)
+seurat_combined$Condition <- unname(condition_map[seurat_combined$orig.ident])
+
+table(seurat_combined$Condition)    # Display the number of cells per biological condition
+sum(is.na(seurat_combined$Condition))    # Check for cells with missing (NA) condition annotations
+```
+
+
+```{r Calculate QC Metrics for Seurat Object}
+head(rownames(seurat_combined), 20)  # View the first 20 row names (typically gene names) in the Seurat object
+seurat_combined[["percent.mt"]] <- PercentageFeatureSet(   # Calculate the percentage of mitochondrial genes per cell
+ seurat_combined,
+ pattern = "^MT-"
+)  ## "^MT-" means genes starting with "MT-" The result is stored in the metadata slot as "percent.mt"
+
+seurat_combined[["percent.rb"]] <- PercentageFeatureSet(  # Calculate the percentage of ribosomal genes per cell
+ seurat_combined,
+ pattern = "^RPL|^RPS"
+)  # "^RPL|^RPS" matches genes starting with "RPL" or "RPS". Stored in metadata as "percent.rb"
+
+colnames(seurat_combined@meta.data)  # Show all column names in the metadata to confirm our new columns are added
+
+summary(seurat_combined$percent.mt) 
+summary(seurat_combined$percent.rb)
+```
+###########QC Processing#################
+
+```{r PreQC Visualization}
+# These parameters define quality control rules that help distinguish real, healthy single cells from empty droplets, dying cells, or technical artifacts.
+study_id <- "GSE183276"
+
+seurat_combined <- AddMetaData(seurat_combined, metadata = seurat_combined$orig.ident, col.name = "Sample") # Add a new metadata column named "Sample" to the Seurat object
+# This duplicates the 'orig.ident' column (original sample identity)
+
+save_violin_plots_separate <- function(      ###Generate violin + boxplots for specified QC metrics
+ seurat_obj,    #   - seurat_obj: Seurat object containing data and metadata
+ plotDir,       #   - plotDir: directory where plots will be saved
+ study_id,      #   - study_id: ID to include in file names
+ features = c("nCount_RNA", "nFeature_RNA", "percent.mt", "percent.rb")    #   - features: vector of metadata features to plot 
+) {   
+
+ if (!dir.exists(plotDir)) {                
+ dir.create(plotDir, recursive = TRUE)
+ }
+
+ meta <- seurat_obj@meta.data                   # Extract metadata from Seurat object
+ meta$sample <- as.factor(meta$orig.ident)             # Convert sample column to factor for plotting
+
+ for (feat in features) {   # Loop over each feature and generate plots
+ if (!feat %in% colnames(meta)) {
+ warning(paste("Skipping", feat, "- not found in metadata"))     # Skip the feature if it does not exist in metadata
+ next
+ }
+  # Create a violin plot with overlaid boxplot
+ p <- ggplot(meta, aes(x = sample, y = .data[[feat]])) +
+ geom_violin(trim = TRUE, fill = "steelblue", alpha = 0.7) +
+ geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.6) +
+ labs(title = feat,x = "Sample",y = feat) + 
+ theme_bw(base_size = 14) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
+ plot.title = element_text(hjust = 0.5))
+
+ ggsave(filename = file.path(plotDir,paste0(study_id, "_preQC_", feat, "_violin.png")),
+ plot = p,width = 16,height = 9,dpi = 400,bg = "white")
+ }
+}
+
+save_violin_plots_separate(seurat_combined, plotDir, study_id)  # Run the QC plotting function: generates and saves violin + boxplots for key metrics (UMI counts, gene counts, mitochondrial % and ribosomal %) for each sample before filtering
+
+# Scatter plot of nCount vs nFeature with marginal histograms
+density_scatter_plot <- function(seurat_obj, filename){     ##again a general function like above; each row = one cell
+ df <- data.frame(
+ log1p_nCount_RNA = log1p(seurat_obj$nCount_RNA),      #total RNA molecules
+ log1p_nFeature_RNA = log1p(seurat_obj$nFeature_RNA),    #no. of genes detected
+ Condition = seurat_obj$Condition                        #control vs disease (or groups)
+ )
+ 
+ p <- ggplot(df, aes(x = log1p_nCount_RNA, y = log1p_nFeature_RNA, colour = Condition)) +
+ geom_point(alpha = 0.3, size = 0.5) +
+ theme_minimal() +
+ theme(legend.position.inside = c(0.05, 0.95), legend.justification = c("left", "top"), legend.key.size = unit(0.5, 'cm')) +
+ guides(color = guide_legend(override.aes = list(size = 5))) + # 'size' here controls the symbol size
+ labs(x = "log1p(nCount_RNA)", y = "log1p(nFeature_RNA)")
+ 
+ p <- ggMarginal(p, type = "histogram", fill = "skyblue", bins = 40)
+ ggsave(filename,plot = p,width = 8,height = 10,dpi = 400,bg = "white")}
+
+density_scatter_plot(seurat_combined, file.path(plotDir, paste0(study_id, "_preQC_density-scatter.png")))
+```
+
+
+```{r Quality Control Filtering Functions for Seurat Object}
+# Remove cells with abnormal total RNA counts; automatically detects outliers
+## Defines functions to remove low-quality or outlier cells, based on RNA counts, feature counts, mitochondrial and ribosomal RNA percentages. 
+
+# Steps: 1. Extract nCount_RNA from metadata
+#   2. Compute Mahalanobis distance for each cell
+#   3. Identify outlier cells exceeding chi-squared threshold
+#   4. Return Seurat object with outliers removed
+fil_nCounts <- function(seurat_obj, threshold_mahalanobis){    ##Remove cells with abnormal total RNA counts (nCount_RNA) using Mahalanobis distance 
+ ncounts_data <- as.data.frame(seurat_obj@meta.data$nCount_RNA)    # Convert nCount_RNA to a data frame
+ colnames(ncounts_data) <- "nCount_RNA"
+ 
+# Compute Mahalanobis distance (distance from multivariate mean considering covariance
+##The Mahalanobis distance is a way to measure how far a cell is from a group of cells, taking correlations between genes into account.
+ mahalanobis_dist <- mahalanobis(x = ncounts_data, center = colMeans(ncounts_data), cov = cov(ncounts_data))
+ 
+ seurat_obj$mahal_dist_nCount <- mahalanobis_dist    # Add Mahalanobis distances to Seurat metadata
+ mahal.fil <- qchisq(threshold_mahalanobis, df = ncol(ncounts_data))   # Compute chi-squared cutoff for outlier detection
+ message(paste0("Mahalanobis threshold: ", round(mahal.fil, 3)))
+ 
+ cells_to_remove <- rownames(seurat_obj@meta.data)[seurat_obj$mahal_dist_nCount > mahal.fil]     # Identify cells exceeding threshold
+ message(paste0("Removing ", length(cells_to_remove), " cells (outliers by nCount_RNA)"))
+ 
+ return(subset(seurat_obj, cells = setdiff(colnames(seurat_obj), cells_to_remove)))    # Return Seurat object with outlier cells removed
+}
+
+# Filter low (empty droplets or poor capture) & high (likely doublets) gene cells
+## Remove cells with too few or too many detected genes
+#   - seurat_obj: Seurat object
+#   - min_feat: minimum number of features required (filters low-quality/empty droplets)
+#   - max_feat: maximum number of features allowed (filters likely doublets)
+filter_nFeatures <- function(seurat_obj, min_feat, max_feat, ...) {
+ return(subset(seurat_obj, subset = nFeature_RNA > min_feat & nFeature_RNA < max_feat))
+}
+
+# Filter high mitochondrial RNA- Remove cells with high mitochondrial RNA content
+# Rationale: High percent.mt often indicates stressed or dying cells
+filter_mt <- function(seurat_obj, max_mt) {
+ return(subset(seurat_obj, subset = percent.mt < max_mt))
+}
+
+# Filter high ribosomal RNA- Remove cells with high ribosomal RNA content
+# Rationale: Extremely high ribosomal RNA may indicate technical artifacts
+filter_rb <- function(seurat_obj, max_rb) {
+ return(subset(seurat_obj, subset = percent.rb < max_rb))
+}
+
+```
+
+
+```{r QC thresholds application + reporting}
+##Applies filtering thresholds to remove low-quality or abnormal cells and generates a summary table showing the effect of QC.
+study_id <- "GSE183276"
+min_features <- 200 # A cell must express at least 200 genes to be considered real. <200 --> empty droplets/cause most noise
+max_features <- 7000 # Cells with more than 7000 genes are removed. Extremely high gene counts often indicate doublets
+max_percent_mt <- 15 # Remove cells where >20% of RNA comes from mitochondria
+max_percent_rb <- 10 # Remove cells dominated by ribosomal expression. High rRNA --> low info content/technical bias
+threshold_mahalanobis <- 0.95 # Remove the worst 5% of cells that look abnormal overall (catches subtle outliers)
+
+seurat_filtered <- filter_nFeatures(seurat_combined, min_features, max_features) # Filter cells by number of features
+
+seurat_filtered <- filter_mt(seurat_filtered, max_percent_mt)  # Filter cells by mitochondrial RNA content
+
+seurat_filtered <- fil_nCounts(seurat_filtered, threshold_mahalanobis)  # Filter cells with abnormal total RNA counts (Mahalanobis distance)
+
+seurat_filtered <- filter_rb(seurat_filtered,max_percent_rb)  # Filter cells by ribosomal RNA content
+
+# Cell counts before QC
+df_pre_qc <- as.data.frame(table(seurat_combined$Sample))
+colnames(df_pre_qc) <- c("Sample_ID", "Cells_Before_QC")
+
+# Cell counts after QC
+df_post_qc <- as.data.frame(table(seurat_filtered$Sample))
+colnames(df_post_qc) <- c("Sample_ID", "Cells_After_QC")
+
+# Merge into final QC table (left join behavior)
+final_qc_table <- merge(df_pre_qc, df_post_qc, by = "Sample_ID", all.x = TRUE)
+final_qc_table
+total_cells_before_qc <- sum(final_qc_table$Cells_Before_QC, na.rm = TRUE)
+total_cells_after_qc <- sum(final_qc_table$Cells_After_QC, na.rm = TRUE)
+
+total_cells_before_qc
+total_cells_after_qc
+```
+
+```{r Save Summary Table}
+qc_metrics_file <- file.path(outputDir, paste0(study_id, "_QC_metrics.csv"))
+write.csv(final_qc_table, qc_metrics_file, row.names = FALSE)
+cat("Saved QC summary table to:", qc_metrics_file, "\n")
+```
+
+```{r Post QC Visualizations}
+##Generates violin plots and scatter plots for QC metrics after filtering, allowing visual inspection of cell quality.
+study_id <- "GSE183276"
+
+save_violin_plots_separate <- function(seurat_obj,plotDir,study_id,features = c("nCount_RNA", "nFeature_RNA", "percent.mt", "percent.rb")) 
+
+{
+ # Ensure output directory exists
+ if (!dir.exists(plotDir)) {
+ dir.create(plotDir, recursive = TRUE)
+ }
+
+ meta <- seurat_obj@meta.data    # Extract metadata for plotting
+ meta$sample <- as.factor(meta$orig.ident)      # Create a factor for sample identity (used for x-axis)
+
+ for (feat in features) {         # Loop through features and generate plots
+ if (!feat %in% colnames(meta)) {     
+ warning(paste("Skipping", feat, "- not found in metadata"))                  # Skip features not found in metadata
+ next 
+ }
+  # Create violin plot with overlaid boxplot
+ p <- ggplot(meta, aes(x = sample, y = .data[[feat]])) +
+ geom_violin(trim = TRUE, fill = "steelblue", alpha = 0.7) +
+ geom_boxplot(width = 0.1, outlier.shape = NA, alpha = 0.6) +
+ labs(title = feat, x = "Sample", y = feat) +
+ theme_bw(base_size = 14) + theme(axis.text.x = element_text(angle = 45, hjust = 1),
+ plot.title = element_text(hjust = 0.5))
+
+ ggsave(filename = file.path(plotDir,paste0(study_id, "_postQC_", feat, "_violin.png")),
+ plot = p, width = 16, height = 9, dpi = 400, bg = "white" ) }
+}
+
+save_violin_plots_separate(seurat_filtered, plotDir, study_id)
+
+# Scatter plot of nCount vs nFeature with marginal histograms
+density_scatter_plot <- function(seurat_obj, filename){
+ df <- data.frame(
+ log1p_nCount_RNA = log1p(seurat_obj$nCount_RNA),
+ log1p_nFeature_RNA = log1p(seurat_obj$nFeature_RNA),
+ Condition = seurat_obj$Condition
+ )
+ 
+ p <- ggplot(df, aes(x = log1p_nCount_RNA, y = log1p_nFeature_RNA, colour = Condition)) +
+ geom_point(alpha = 0.3, size = 0.5) +
+ theme_minimal() +
+ theme(legend.position.inside = c(0.05, 0.95), legend.justification = c("left", "top"), legend.key.size = unit(0.5, 'cm')) +
+ guides(color = guide_legend(override.aes = list(size = 5))) + # 'size' here controls the symbol size
+ labs(x = "log1p(nCount_RNA)", y = "log1p(nFeature_RNA)")
+ 
+ p <- ggMarginal(p, type = "histogram", fill = "skyblue", bins = 40)
+ ggsave(filename,plot = p,width = 8,height = 10, dpi = 400, bg = "white")
+}
+
+density_scatter_plot(seurat_filtered, file.path(plotDir, paste0(study_id, "_postQC_density-scatter.png")))
+```
+
+
+```{r Keep only protein coding genes}
+## Restrict Seurat Object to Protein-Coding Genes
+## Keeps only protein-coding genes prior to normalization and inspects the filtered Seurat object.
+protein_coding_genes <- readLines(file.path(inputDir, "Protein_coding_genes.txt"))
+
+## subsetting a Seurat object by features (genes), not by cells before normalization
+seurat_filtered <- subset(seurat_filtered, features = protein_coding_genes)
+
+####  Explore Filtered Seurat Object after QC Filter  ####
+class(seurat_filtered)            # Seurat class
+Assays(seurat_filtered)           # assays available in the rds
+DefaultAssay(seurat_filtered)     # default/active assay in the rds
+dim(seurat_filtered)# 16442 genes/features x 5405 cells
+```
+
+``` {r download the metadata.csv file}
+library(GEOquery)
+gse <- getGEO("GSE183276", GSEMatrix = TRUE)
+metadata <- pData(gse[[1]])
+colnames(metadata)
+setwd("D://Bidya Work/single/GSE183276")
+write.csv(metadata, "GSE183276_metadata.csv", row.names = TRUE)
+```
+
+```{r Merge GEO Metadata into Seurat Object}
+metadata <- read.csv("D://Bidya Work/single/GSE183276/GSE183276_metadata.csv", header = TRUE, row.names = 1)
+metadata
+# Add GEO metadata to seurat metadata slot}
+# Extract current Seurat metadata and keep barcodes
+seurat_meta <- seurat_filtered@meta.data
+seurat_meta$barcode <- rownames(seurat_meta)  # store barcodes as a column. why? coz merge() will shuffle rows and remove rownames so we temporarily save sample IDs
+colnames(seurat_meta)
+colnames(metadata)
+head(metadata)
+
+# Merge by sample <-> geo_accession
+merged_meta <- merge(seurat_meta, metadata, by.x = "Sample", by.y = "geo_accession", all.x = TRUE)   #Join based on sample ID
+
+# Restore barcodes as rownames
+rownames(merged_meta) <- merged_meta$barcode   
+merged_meta$barcode <- NULL 
+
+# Assign back to Seurat object
+seurat_filtered@meta.data <- merged_meta
+```
+
+```{r Save Filtered Seurat Object}
+saveRDS(seurat_filtered,file = file.path(outputDir, "02_GSE183276_seurat_qc_filtered.rds"))
+```
+
+```{r Load again the Filtered Seurat Object}
+#seurat_filtered <- readRDS(file = file.path(outputDir, "02_GSE183276_seurat_qc_filtered.rds"))
+```
+
+```{r Standard workflow for normalization and scaling}
+# Normalize gene expression values for each cell by total expression, multiply by a scale factor (default 10,000), and log-transform. This makes expression levels comparable across cells.
+cat("Normalizing data using LogNormalize method (scale factor = 10,000)...\n")
+seurat_processed <- NormalizeData(seurat_filtered,
+                                 normalization.method = "LogNormalize")  # What percentage of total RNA does each gene contribute in this cell?
+
+# Identify highly variable genes across cells using the VST method. These genes capture the most biological signal and are used for downstream analyses.
+seurat_processed <- FindVariableFeatures(seurat_processed, selection.method = "vst", nfeatures = 2500)
+seurat_processed <- ScaleData(seurat_processed)  # Scale and center the data so that each gene has mean = 0 and variance = 1. This ensures that highly expressed genes do not dominate PCA.
+
+seurat_processed <- RunPCA(seurat_processed, dims=1:100, npcs = 100) # Perform Principal Component Analysis (PCA) for dimensionality reduction. PCA is run on the scaled expression values of variable genes. Here, up to 100 PCs are computed to capture major sources of variation.
+```
+
+```{r Custom colors for Condition in metadata}
+custom_colors <- c("AKI"="purple3", "DKD"="darkorange3", "HCKD"="green4", "Healthy"="blue3")
+```
+
+```{r Principal Component Selection and Variance Analysis_Elbow Plot}
+# Get the standard deviation for each PC then get the variance explained by each PC, then calculate the cumulative variance
+stdev <- seurat_processed[["pca"]]@stdev # Extract the standard deviation of each principal component (PC) from the PCA reduction object.
+var_explained <- stdev^2 / sum(stdev^2) # Calculate the proportion of variance explained by each PC. Variance explained is the squared standard deviation of each PC divided by the total variance across all PCs.
+cum_var <- cumsum(var_explained)  # Compute cumulative variance explained across PCs.
+pca_var_df <- data.frame(PC = 1:length(stdev),  Variance = var_explained,  CumulativeVariance = cum_var) # Store variance metrics in a data frame for inspection and reporting.
+pca_var_df
+num_PCs <- min(which(cum_var >= 0.95)) # Identify the minimum number of PCs required to explain at least 95% of the total variance in the dataset.
+num_PCs
+
+elbow_plot <- ElbowPlot(seurat_processed, ndims = 100, reduction = 'pca')+
+  labs(title = "PCA Elbow Plot for Dimensionality Selection")
+
+ggsave(file.path(plotDir, paste0(study_id, "_ElbowPlot.png")),
+       elbow_plot, width = 8, height = 6, bg = 'white')
+```
+
+
+```{r Total variance explained across the top 35 PCs}
+pca_stdev <- seurat_processed[["pca"]]@stdev  # Extract the standard deviation for each principal component (PC) from the PCA reduction object.
+pca_var_explained <- (pca_stdev^2) / sum(pca_stdev^2) * 100  # Calculate the percentage of variance explained by each PC. Variance explained is computed as the squared standard deviation and divided by the total variance, multiplied by 100.
+total_var<- sum(pca_var_explained[1:35])  # Compute the total variance explained by the top 35 PCs. This helps quantify how much biological variation is retained when using 35 dimensions for downstream analyses.
+
+cat("Total variance explained by top PCs:", round(total_var, 2), "%\n")   # Print the total variance explained by the top PCs.
+##60–85% variance explained is very typical
+##100% is neither possible nor desirable (that would mean you kept all the noise)
+##80% is a healthy balance between signal retention and noise reduction
+```
+
+
+
+```{r Perform UMAP & Clustering on unintegrated data}
+library(glue)
+seurat_processed <- RunUMAP(seurat_processed, dims = 1:35)  # UMAP provides a low-dimensional (2D) representation of the data that preserves local neighborhood structure for visualization.
+seurat_processed <- FindNeighbors(seurat_processed, dims = 1:35, reduction = "pca", graph.name = "pca_nn") # Construct a shared nearest-neighbor (SNN) graph using PCA embeddings. This graph represents cell–cell similarity and is used for clustering.
+
+seurat_processed <- FindClusters(seurat_processed, resolution = 0.8,graph.name = "pca_nn", cluster.name = "pca_clusters")  # Perform graph-based clustering on the PCA-derived neighbor graph. The resolution parameter controls cluster granularity (higher values yield more clusters). 
+n_clusters <- length(unique(seurat_processed$pca_clusters))  # Count and report the number of identified clusters.
+cat(glue("Clustering complete. Number of clusters: {n_clusters}\n"))  # 19 clusters found
+table(seurat_processed$pca_clusters)
+```
+
+
+``` {r UMAP plot save}
+# UMAP colored by PCA-based clusters, shows the cell types, so cells that are similar stay close together in 2D. Each cluster (represented by a color) groups cells with similar overall gene expression patterns.
+
+umap_clusters <- DimPlot(
+  seurat_processed,
+  reduction = "umap",
+  group.by = "pca_clusters",
+  label = TRUE
+) +
+  labs(title = "UMAP: PCA-Based Clusters")
+
+ggsave(filename = file.path(plotDir, paste0(study_id, "_UMAP_pca_clusters.png")), plot = umap_clusters,  width = 8,  height = 6,  bg = "white")
+
+```
+
+
+
+```{r}
+head(seurat_processed@meta.data, 3)
+```
+```{r clustering by condition}
+# UMAP colored by condition (if available in metadata) 
+umap_condition <- DimPlot( seurat_processed, reduction = "umap", group.by = "Condition" ) + labs(title = "UMAP: Condition") 
+ggsave( filename = file.path(plotDir, paste0(study_id, "_UMAP_condition.png")), plot = umap_condition, width = 8, height = 6, bg = "white" )
+```
+
+```{r Save Unintegrated Seurat Object}
+saveRDS(seurat_processed, file = paste0(outputDir,"03_GSE183276_seurat_pca_umap.rds"))
+#seurat_processed <- readRDS(file = paste0(outputDir, "03_GSE183276_seurat_pca_umap.rds"))
+#seurat_processed contains Gene expression matrix (genes × cells), Cell clusters (tumor subtypes, immune cells, etc.), Metadata (sample info, condition), Dimensional reductions (PCA, UMAP)
+
+merged = JoinLayers(seurat_processed) # Join layers in the Seurat object (e.g., counts, normalized data, scaled data). Combines multiple assay layers into one unified structure
+sce <- as.SingleCellExperiment(merged, assay = "RNA")  # Convert the Seurat object to a SingleCellExperiment (SCE) object
+# This allows usage of Bioconductor tools and compatibility with other R workflows
+
+dim(sce) #16442  5405
+assayNames(sce)
+reducedDimNames(sce)
+head(colData(sce),2)
+
+outputDir <-  "D:/Bidya Work/single/GSE183276/output"
+h5seurat_name <- "03_GSE183276_seurat_pca_umap.h5seurat"
+h5ad_name <- "03_GSE183276_seurat_pca_umap.h5ad"
+
+SaveH5Seurat(object = seurat_processed, filename = file.path(outputDir, h5seurat_name), overwrite = TRUE, version = "3")  # Save Seurat object in H5Seurat format (efficient storage for large datasets)
+
+writeH5AD(sce, file = paste0(outputDir, "03_GSE183276_seurat_pca_umap.h5ad")) # Save SCE object in H5AD format (AnnData, used in Python / Scanpy)
+```
+
+
+
+```{r Run Harmony & Perform Clustering on Harmony integrated data}
+# Run Harmony to integrate data across batches (here, "Sample" is the batch variable)
+# Harmony adjusts PCA embeddings to remove batch effects while preserving biological variation
+harmony_processed <- RunHarmony(seurat_processed, c("Sample"), plot_convergence = TRUE)
+
+# Compute UMAP based on Harmony-corrected embeddings (low-dimensional visualization)
+# Using the first 50 Harmony dimensions
+harmony_processed <- RunUMAP(harmony_processed, reduction = "harmony", dims = 1:50)
+
+# Construct a nearest-neighbor graph from Harmony embeddings for clustering
+harmony_processed <- FindNeighbors(harmony_processed, reduction = "harmony", dims = 1:50, graph.name = "harmony_nn")
+
+# Perform graph-based clustering on the Harmony-corrected neighbor graph
+# The resolution parameter controls the number of clusters (higher = more clusters)
+harmony_processed <- FindClusters(harmony_processed, graph.name = "harmony_nn", resolution = 0.8, group.name = "Harmony_clusters")
+length(unique(harmony_processed$seurat_clusters))
+
+#found 20 clusters
+
+saveRDS(harmony_processed, file = paste0(outputDir,"04_GSE183276_harmony_corrected.rds"))
+harmony_processed <- readRDS(file = paste0(outputDir, "04_GSE183276_harmony_corrected.rds"))
+
+merged1 = JoinLayers(harmony_processed) 
+sce_harmony <- as.SingleCellExperiment(merged1, assay = "RNA")
+
+dim(sce_harmony)
+assayNames(sce_harmony)
+reducedDimNames(sce_harmony)
+head(colData(sce_harmony),2)
+
+outputDir <- "D:/Bidya Work/single/GSE183276/output"
+h5seurat_name1 <- "04_GSE183276_harmony_corrected.h5seurat"
+h5ad_name1 <- "04_GSE183276_harmony_corrected.h5ad"
+
+SaveH5Seurat(
+  object = harmony_processed,
+  filename = file.path(outputDir, h5seurat_name1),
+  overwrite = TRUE,
+  version = "3"
+)
+
+writeH5AD(sce_harmony, file = paste0(outputDir,  "04_GSE183276_harmony_corrected.h5ad"))
+
+```
+
+```{r Understanding harmony}
+
+p1 <- DimPlot(
+  seurat_processed,
+  group.by = "Sample",
+  shuffle = TRUE,
+  pt.size = 0.5
+) + NoLegend()
+
+
+p2 <- DimPlot(
+  harmony_processed,
+  group.by = "Sample",
+  shuffle = TRUE,
+  pt.size = 0.5
+) + NoLegend()
+
+ggsave(file.path(plotDir, "before_harmony.png"), plot = p1, width = 8, height = 7, dpi = 300)
+ggsave(file.path(plotDir, "after_harmony.png"), plot = p2, width = 8, height = 7, dpi = 300)
+
+p3 <- DimPlot(harmony_processed, group.by = "seurat_clusters", label = TRUE)
+ggsave(file.path(plotDir, "clusters.png"), plot = p3, width = 6, height = 5, dpi = 300)
+
+```
+
+
+
+
+
+```{r Dimention reduction plot on PCA}
+##Visualize uncorrected cell clusters on UMAP colored by Sample and Condition, and save the plots
+p <- DimPlot(seurat_processed, reduction = "umap", group.by = "Sample") + ggtitle("Uncorrected") +  NoLegend()
+  ggtitle("Uncorrected")
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_RawPCA_sample.png"), width = 7, height = 6, dpi = 600)
+p
+
+p <-DimPlot(seurat_processed, reduction = "umap", group.by = "Condition") +
+  ggtitle("Uncorrected")
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_RawPCA_condition.png"), width = 8, height = 6, dpi = 600)
+p
+```
+```{r visualizing post-integration (Harmony-corrected) UMAP}
+#harmony_processed <- RunUMAP(harmony_processed, reduction = "harmony", dims = 1:30)
+p2 <-DimPlot(harmony_processed, reduction = "umap", group.by = "Condition") + ggtitle("Harmony") 
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_Harmony_condition.png"), width = 8, height = 6, dpi = 600)
+p2
+
+p <- DimPlot(harmony_processed, reduction = "umap", group.by = "Sample") + ggtitle("Harmony") +  NoLegend()
+ggsave(filename = file.path(plotDir, "BENCHMARKING_GSE183276_Harmony_sample.png"), width = 7, height = 6, dpi = 600)
+p
+
+umap_hcoords <- Embeddings(harmony_processed, "umap")
+write.csv(umap_hcoords, file="GSE183276_umap_coordinates.csv")
+```
+
+``` {r KNN-Based Batch Mixing Function Definition}
+##what we did above with umap harmony and all, was just visualising it but here in this chunk we are measuring it by KNN. UMAP provides qualitative visualization, but to objectively evaluate batch correction, we computed KNN-based batch mixing scores before and after Harmony.
+
+# Compute the fraction of nearest neighbors from the same batch before and after Harmony integration, then combine results for visualization as a bar plot
+library(ggplot2)   
+library(FNN)    # for nearest neighbor calculations
+# Computes the mean fraction of k-nearest neighbors (KNN) that belong to the same batch
+# Arguments:
+#   seu       : Seurat object
+#   batch_var : Column in metadata specifying batch/sample
+#   reduction : Dimensionality reduction to use (PCA or Harmony)
+#   dims      : Dimensions to use from reduction
+#   k         : Number of neighbors for KNN
+compute_knn_batch_mixing <- function(
+    seu,
+    batch_var,
+    reduction = "pca",
+    dims = 1:50,
+    k = 20
+){
+  
+# Check if the batch column exists in metadata(We need this to know which batch each cell belongs to)
+  if (!batch_var %in% colnames(seu@meta.data)) {
+    stop(paste0("Metadata column '", batch_var, "' not found in seu@meta.data"))
+  }
+  
+   # # Check if the required dimensional reduction (PCA/Harmony) exists. If not, create it from scratch
+  if (!reduction %in% Reductions(seu)) {
+    message("[INFO] PCA not found. Running Normalize → HVG → Scale → PCA")
+    seu <- NormalizeData(seu, verbose = FALSE)     # Normalize gene expression (make cells comparable)
+    seu <- FindVariableFeatures(seu, selection.method = "vst", nfeatures = 3000)    # Select important genes (highly variable genes)
+    seu <- ScaleData(seu, verbose = FALSE)     # Scale data (center and standardize expression values)
+    seu <- RunPCA(seu, npcs = max(dims), verbose = FALSE)   # Run PCA to reduce dimensionality (convert genes → coordinates)
+  }
+  
+# Extract coordinates of each cell from PCA or Harmony space(Each cell becomes a point in multi-dimensional space)
+  emb <- Embeddings(seu, reduction = reduction)[, dims, drop = FALSE]  
+# Find k nearest neighbors for each cell(who are the closest cells in expression space)
+   nn  <- FNN::get.knn(emb, k = k)$nn.index
+# Get batch label for each cell(which sample/batch each cell belongs to)  
+   labs <- seu@meta.data[[batch_var]]
+  
+   
+# For each cell:Check how many of its neighbors belong to the same batch
+  same <- sapply(seq_len(nrow(nn)), function(i){
+# Compare neighbor batch labels with the cell’s own batch. Calculate fraction of neighbors from same batch
+     mean(labs[nn[i,]] == labs[i], na.rm = TRUE)
+  })
+# Create a dataframe with: batch label + same-batch fraction for each cell  
+  df <- data.frame(batch = labs, frac_same_batch = same)
+  
+  # Compute average same-batch fraction for each batch(final summary per batch)
+  aggregate(frac_same_batch ~ batch, df, mean)
+}
+
+# Simple bar plot showing mean same-batch fraction per batch
+plot_knn_batch_mixing <- function(mix_df){
+  ggplot(mix_df, aes(x = batch, y = frac_same_batch)) +
+    geom_col(fill = "steelblue") +
+    labs(
+      title = "Batch Mixing",
+      x = "Batch",
+      y = "Mean same-batch fraction (higher = stronger batch effect)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+p_batch <- plot_knn_batch_mixing(mix_df)
+
+ggsave(
+  filename = file.path(plotDir, "BatchMixing.png"),
+  plot = p_batch,
+  width = 14,
+  height = 5,
+  dpi = 600
+)
+
+```
+
+```{r Before and after Harmony + final plot}
+# -------------------------------
+# Compute batch mixing before and after Harmony
+# -------------------------------
+
+# Define which metadata column represents batch/sample(this tells the function how cells are grouped)
+batch_column <- "Sample"
+
+# Before batch correction
+mix_df <- compute_knn_batch_mixing(
+  seu       = seurat_processed,             
+  batch_var = batch_column,
+  reduction = "pca",   ##PCA is built from:raw gene expression (after normalization). no batch correction
+  dims      = 1:50,
+  k         = 20
+)
+
+# After Harmony batch correction
+mix_df_harmony <- compute_knn_batch_mixing(
+  seu       = harmony_processed,
+  batch_var = batch_column,
+  reduction = "harmony",   ##Harmony takes PCA and adjusts it. Cells are repositioned after removing batch effect
+  dims      = 1:50,
+  k         = 20
+)
+#so pca is the original structure and harmony the corrected structure.
+
+# Stack the two results together(BUT this alone does not tell us which is before/after)
+mix_df_combined <- rbind(mix_df, mix_df_harmony)
+
+# Combine results for plotting
+mix_df_combined1 <- rbind(
+  transform(mix_df, Status = "Before"),
+  transform(mix_df_harmony, Status = "Harmony")
+)
+
+##Visualize the effect of Harmony batch correction by plotting mean fraction of same-batch neighbors
+
+batch_cor_plot <- ggplot(mix_df_combined1, aes(x = batch, y = frac_same_batch, fill = Status)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  labs(
+    title = "Batch Mixing",
+    x = "Samples",
+    y = "Mean same-batch fraction (higher = stronger batch effect)"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Before" = "#00CED1",     # turquoise
+      "Harmony" = "#9370DB"     # new purple shade (example 3rd color)
+    )
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+batch_cor_plot
+
+ggsave(filename = file.path(plotDir,"batch_correction_barplot_combined.png"), plot = batch_cor_plot, width = 23, height = 8, dpi = 300)
+```
+

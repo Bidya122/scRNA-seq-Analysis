@@ -1058,6 +1058,77 @@ While the UMAP suggested improved mixing across batches, visual inspection alone
 
 Bar plot showing the mean fraction of same-batch nearest neighbors for each sample in PCA space (before batch correction). Higher values indicate stronger batch effects, meaning cells preferentially cluster with cells from the same sample rather than mixing across samples. Several samples exhibit high same-batch fractions, suggesting substantial batch-driven structure in the data prior to integration. To get a comparative analysis, I plotted the before and after results of Harmony integration with computing the fraction of its nearest neighbors that belong to the same batch, providing a direct numerical measure of batch effect.    
 
+# Before and after Harmony + final plot
+```bash
+# -------------------------------
+# Compute batch mixing before and after Harmony
+# -------------------------------
+
+# Define which metadata column represents batch/sample(this tells the function how cells are grouped)
+batch_column <- "Sample"
+
+# Before batch correction
+mix_df <- compute_knn_batch_mixing(
+  seu       = seurat_processed,             
+  batch_var = batch_column,
+  reduction = "pca",   ##PCA is built from:raw gene expression (after normalization). no batch correction
+  dims      = 1:50,
+  k         = 20
+)
+
+# After Harmony batch correction
+mix_df_harmony <- compute_knn_batch_mixing(
+  seu       = harmony_processed,
+  batch_var = batch_column,
+  reduction = "harmony",   ##Harmony takes PCA and adjusts it. Cells are repositioned after removing batch effect
+  dims      = 1:50,
+  k         = 20
+)
+#so pca is the original structure and harmony the corrected structure.
+
+# Stack the two results together(BUT this alone does not tell us which is before/after)
+mix_df_combined <- rbind(mix_df, mix_df_harmony)
+
+# Combine results for plotting
+mix_df_combined1 <- rbind(
+  transform(mix_df, Status = "Before"),
+  transform(mix_df_harmony, Status = "Harmony")
+)
+
+##Visualize the effect of Harmony batch correction by plotting mean fraction of same-batch neighbors
+
+batch_cor_plot <- ggplot(mix_df_combined1, aes(x = batch, y = frac_same_batch, fill = Status)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  labs(
+    title = "Batch Mixing",
+    x = "Samples",
+    y = "Mean same-batch fraction (higher = stronger batch effect)"
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Before" = "#00CED1",     # turquoise
+      "Harmony" = "#9370DB"     # new purple shade (example 3rd color)
+    )
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+batch_cor_plot
+
+ggsave(filename = file.path(plotDir,"batch_correction_barplot_combined.png"), plot = batch_cor_plot, width = 23, height = 8, dpi = 300)
+```
+After defining the KNN-based batch mixing metric, I applied it to quantitatively evaluate the effectiveness of Harmony integration. Specifically, then computed the fraction of same-batch nearest neighbors for each cell in both the uncorrected (PCA) and corrected (Harmony) embedding spaces, ensuring that identical parameters (dimensions and number of neighbors) were used for a fair comparison. This allowed us to directly assess how cell neighborhood composition changes after batch correction. The results were then aggregated at the sample level and combined into a single dataframe with labels indicating “Before” and “Harmony”, enabling side-by-side comparison. By visualizing these values in a grouped bar plot, It could be clearly observe, the reduction in same-batch neighbor fractions across samples. This comparison was crucial for decision-making, as it provided objective evidence that Harmony successfully reduced batch-driven clustering observed earlier in PCA space. At the same time, any samples that retained relatively higher values indicated residual batch effects, guiding further evaluation if needed, but as per the graph there were none. 
+
+<img width="1419" height="519" alt="image" src="https://github.com/user-attachments/assets/f87d950c-8f17-4d04-a674-cc7650c77e29" />    
+
+Bar plot comparing the mean fraction of same-batch nearest neighbors for each sample before (PCA) and after (Harmony) batch correction. A decrease in same-batch fraction following Harmony indicates improved batch mixing and successful integration, while persistently higher values suggest residual batch effects.
+
+
+
 
 
 

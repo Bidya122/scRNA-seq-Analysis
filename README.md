@@ -1127,7 +1127,32 @@ After defining the KNN-based batch mixing metric, I applied it to quantitatively
 
 Bar plot comparing the mean fraction of same-batch nearest neighbors for each sample before (PCA) and after (Harmony) batch correction. A decrease in same-batch fraction following Harmony indicates improved batch mixing and successful integration, while persistently higher values suggest residual batch effects.
 
-
+# Cell type Annotation (Cell Typist)
+After batch correction and dimensionality reduction, automated cell type annotation was performed using CellTypist (vX.X).  
+- Input: Batch-corrected AnnData object (post-Harmony / integration)  
+- Model used: Immune_All_Low.pkl (or whichever you used)  
+- Mode: majority voting (or probabilistic)  
+- Output: Predicted cell labels stored in `.obs['cell_type']`  
+This step assigns biologically meaningful identities to clusters based on reference transcriptomic profiles.
+So, the following protocol starts on Jupyter Notebook and Anaconda prompt.
+**You can download Anaconda from here**   [Click to view website](https://www.anaconda.com/download)
+**Open Anaconda Prompt and type**
+```bash
+# Create a new conda environment named "celltypist_env" with Python 3.9
+conda create -n celltypist_env python=3.9
+```
+```bash
+# Activate the newly created environment
+conda activate celltypist_env
+```
+```bash
+# Install required packages for scRNA-seq analysis and notebook support
+pip install celltypist scanpy jupyter ipykernel
+```
+```bash
+# Register the environment as a Jupyter kernel for use in notebooks
+python -m ipykernel install --user --name celltypist_env --display-name "Python (celltypist_env)"
+```
 
 
 

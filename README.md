@@ -1135,7 +1135,9 @@ After batch correction and dimensionality reduction, automated cell type annotat
 - Output: Predicted cell labels stored in `.obs['cell_type']`  
 This step assigns biologically meaningful identities to clusters based on reference transcriptomic profiles.
 So, the following protocol starts on Jupyter Notebook and Anaconda prompt.
+
 **You can download Anaconda from here**   [Click to view website](https://www.anaconda.com/download)
+
 **Open Anaconda Prompt and type**
 ```bash
 # Create a new conda environment named "celltypist_env" with Python 3.9
@@ -1153,6 +1155,14 @@ pip install celltypist scanpy jupyter ipykernel
 # Register the environment as a Jupyter kernel for use in notebooks
 python -m ipykernel install --user --name celltypist_env --display-name "Python (celltypist_env)"
 ```
+```bash
+# open Jupyter Notebook
+jupyter notebook
+```
+<img width="602" height="447" alt="image" src="https://github.com/user-attachments/assets/a9af4fd6-3da1-42d5-89ea-264ff85a296a" />    
+
+The notebook interface will open in a web browser, where you can create and run notebooks using the configured environment. Select the environment you just created as the kernel. 
+
 
 
 

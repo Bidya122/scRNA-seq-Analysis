@@ -1162,8 +1162,70 @@ jupyter notebook
 <img width="602" height="447" alt="image" src="https://github.com/user-attachments/assets/a9af4fd6-3da1-42d5-89ea-264ff85a296a" />    
 
 The notebook interface will open in a web browser, where you can create and run notebooks using the configured environment. Select the environment you just created as the kernel. 
+```bash
+import celltypist  ## Import celltypist to perform automated cell type annotation using pre-trained models
+import scanpy as sc   ## Import scanpy, the primary toolkit for analyzing single-cell RNA-seq data in Python
 
+print("CellTypist and Scanpy loaded successfully!")
+```
+```bash
+# Import pandas to handle data manipulation and analysis, 
+# especially for managing cell metadata (obs) and gene information (var) as DataFrames
+import pandas as pd
+```
+```bash
+import warnings   ## Import the warnings module to manage and silence non-critical system alerts
 
+# Suppress PerformanceWarnings from pandas, which often occur when highly 
+# fragmented DataFrames are created during large-scale single-cell data processing
+warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+```
+```bash
+ # Import the os module to interact with the operating system, 
+# allowing for file path management and directory navigation
+import os
+```
+```bash
+##ad is reserved for AnnData (the library that handles the data structure Scanpy uses).
+import scanpy as ad ## Import scanpy using the 'ad' alias
+```
+```bash
+# Set the current working directory to the specified folder for saving plots
+os.chdir("D:/Bidya Work/single/GSE183276/plots/celltypist_plots")
+os.getcwd()
+```
+This section initializes the analysis environment by importing the essential Python libraries used in single-cell RNA sequencing (scRNA-seq) analysis.    
+
+**🔬 Core Analysis Libraries**    
+<u>scanpy</u>        
+A comprehensive toolkit for analyzing single-cell RNA-seq data, including preprocessing, clustering, and visualization.    
+Decision: Chosen as the primary framework because it efficiently handles large-scale single-cell datasets and integrates multiple analysis steps in one pipeline. 
+Biological relevance: Enables identification of cell populations and gene expression patterns across individual cells.    
+<u>celltypist</u>         
+A machine learning-based tool for automated cell type annotation.    
+Decision: Used to avoid manual annotation and leverage pre-trained reference models for faster, standardized results.    
+Biological relevance: Assigns biological identities (e.g., immune cell types) to clusters derived from expression data.    
+**📊 Data Handling & Computation**    
+<u>pandas</u>    
+Used for structured data manipulation (e.g., tables, metadata handling).    
+Decision: Provides flexible and intuitive data structures for handling annotated biological datasets.    
+<u>numpy</u>    
+Supports numerical computations and array operations.    
+Decision: Essential for efficient handling of large gene expression matrices.    
+<u>os</u>    
+Handles file paths and directory operations.    
+Decision: Ensures portability and easy management of input/output files across systems.    
+**📈 Visualization Libraries**    
+<u>matplotlib</u>    
+A foundational plotting library for creating static visualizations.    
+Decision: Used for customizable, publication-quality plots.    
+<u>seaborn</u>    
+Built on top of matplotlib, providing more aesthetically pleasing and statistically informative visualizations.    
+Decision: Simplifies the creation of complex plots like heatmaps and distributions.    
+**⚙️ Utility**    
+<u>warnings</u>    
+Controls and suppresses unnecessary warning messages.    
+Decision: Keeps output clean and focused, especially when working with large pipelines that may generate non-critical warnings.    
 
 
 

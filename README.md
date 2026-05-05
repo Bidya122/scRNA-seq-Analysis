@@ -1286,6 +1286,15 @@ Each point corresponds to a single cell profiled using single-cell RNA sequencin
 Well-separated clusters indicate strong transcriptional differences, while closely positioned clusters may represent related cell types or transitional states.
 UMAP coordinates generated in Seurat (R) were imported and added to the Scanpy AnnData object. The coordinates were aligned using cell barcodes to ensure correct mapping between datasets. Instead of recomputing UMAP in Scanpy, previously generated coordinates were reused to maintain consistency with earlier analysis. UMAP projection reduces high-dimensional gene expression data into a 2D space, allowing visualization of cellular relationships. UMAP was stored in .obsm['X_umap'], following Scanpy’s standard data structure. Proper alignment ensures that  biologically meaningful clusters (e.g., cell types or states) are accurately represented.
 
+```bash
+#In an AnnData object, the .X attribute is the "active" matrix. Most functions look at .X by default.
+#The .layers slot: Usually acts as a container for different versions of your data (e.g., raw, normalized, logcounts).
+#The .copy() requirement: Without .copy(), Python might just create a "view" (a shortcut). If you then modify .X, you might accidentally modify your saved logcounts layer too. Copying keeps them separate and safe.
+GSE183276_harmony_adata.X = GSE183276_harmony_adata.layers['logcounts'].copy()
+```
+In this step, I set the main data matrix to use the log-normalized gene expression values. The AnnData object can store different versions of the data (raw, normalized, etc.). I selected the log-normalized version because it is more stable and suitable for analysis.    
+I also used .copy() to make sure this change does not accidentally affect the original stored data.    
+
 
 
 

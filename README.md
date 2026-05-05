@@ -1295,6 +1295,39 @@ GSE183276_harmony_adata.X = GSE183276_harmony_adata.layers['logcounts'].copy()
 In this step, I set the main data matrix to use the log-normalized gene expression values. The AnnData object can store different versions of the data (raw, normalized, etc.). I selected the log-normalized version because it is more stable and suitable for analysis.    
 I also used .copy() to make sure this change does not accidentally affect the original stored data.    
 
+```bash
+#You are using the batch-corrected Harmony embeddings to group cells and then applying a pre-trained model to "name" those groups.
+import scanpy as sc
+import celltypist
+
+# 1. Define cell-to-cell relationships based on corrected data
+# We use 'HARMONY' instead of the default PCA to ensure the graph as it reflects the batch-corrected space.
+sc.pp.neighbors(GSE183276_harmony_adata, use_rep='HARMONY')
+
+# 2. Group cells into high-resolution clusters
+# A resolution of 10 is very high (over-clustering); this creates many small 
+# sub-groups to help CellTypist make more precise 'majority voting' decisions.
+sc.tl.leiden(GSE183276_harmony_adata, resolution=10, key_added='celltypist_clusters')
+
+# 3. Predict cell types using the CellTypist model
+# We use a specific Kidney model and 'majority_voting', which assigns a single 
+# cell type to an entire cluster based on the most frequent prediction.
+ct_pred = celltypist.annotate(
+    GSE183276_harmony_adata,
+    model='D:/Bidya Work/single/GSE183276/Adult_Human_Kidney.pkl',
+    majority_voting=True,
+    over_clustering='celltypist_clusters'
+)
+
+# 4. View the results
+print(ct_pred.predicted_labels.head())
+```
+<img width="1103" height="152" alt="image" src="https://github.com/user-attachments/assets/ae049fc8-5824-412b-9f78-50a52271c62b" />    
+In this step, I first grouped similar cells together using the batch-corrected Harmony data. This ensures that cells are grouped based on real biological similarity, not technical differences. Then, I split the cells into many small groups to make the predictions more accurate.    
+Finally, I used a pre-trained model (CellTypist) to assign a cell type label (like kidney cell types) to each group based on the most common prediction in that group.
+
+<img width="601" height="232" alt="image" src="https://github.com/user-attachments/assets/d359544a-35e9-4010-a5fd-2260ac844710" />      
+This table shows the final kidney cell type assigned to each cell based on cluster-level majority voting.
 
 
 

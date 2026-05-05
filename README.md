@@ -1197,35 +1197,86 @@ os.getcwd()
 This section initializes the analysis environment by importing the essential Python libraries used in single-cell RNA sequencing (scRNA-seq) analysis.    
 
 **🔬 Core Analysis Libraries**    
-<u>scanpy</u>        
+*<u>scanpy</u>*        
 A comprehensive toolkit for analyzing single-cell RNA-seq data, including preprocessing, clustering, and visualization.    
 Decision: Chosen as the primary framework because it efficiently handles large-scale single-cell datasets and integrates multiple analysis steps in one pipeline. 
 Biological relevance: Enables identification of cell populations and gene expression patterns across individual cells.    
-<u>celltypist</u>         
+*<u>celltypist</u>*         
 A machine learning-based tool for automated cell type annotation.    
 Decision: Used to avoid manual annotation and leverage pre-trained reference models for faster, standardized results.    
 Biological relevance: Assigns biological identities (e.g., immune cell types) to clusters derived from expression data.    
 **📊 Data Handling & Computation**    
-<u>pandas</u>    
+*<u>pandas</u>*    
 Used for structured data manipulation (e.g., tables, metadata handling).    
 Decision: Provides flexible and intuitive data structures for handling annotated biological datasets.    
-<u>numpy</u>    
+*<u>numpy</u>*    
 Supports numerical computations and array operations.    
 Decision: Essential for efficient handling of large gene expression matrices.    
-<u>os</u>    
+*<u>os</u>*    
 Handles file paths and directory operations.    
 Decision: Ensures portability and easy management of input/output files across systems.    
 **📈 Visualization Libraries**    
-<u>matplotlib</u>    
+*<u>matplotlib</u>*    
 A foundational plotting library for creating static visualizations.    
 Decision: Used for customizable, publication-quality plots.    
-<u>seaborn</u>    
+*<u>seaborn</u>*    
 Built on top of matplotlib, providing more aesthetically pleasing and statistically informative visualizations.    
 Decision: Simplifies the creation of complex plots like heatmaps and distributions.    
 **⚙️ Utility**    
-<u>warnings</u>    
+*<u>warnings</u>*    
 Controls and suppresses unnecessary warning messages.    
 Decision: Keeps output clean and focused, especially when working with large pipelines that may generate non-critical warnings.    
+
+```bash
+# Load the AnnData object from a specific file path
+# This file likely contains pre-calculated PCA and UMAP coordinates from a Seurat-to-Scanpy conversion
+GSE183276_raw_adata = ad.read_h5ad("D:/Bidya Work/single/GSE183276/output/03_GSE183276_seurat_pca_umap.h5ad")
+GSE183276_raw_adata
+```
+<img width="1099" height="212" alt="image" src="https://github.com/user-attachments/assets/1a5c0df6-2043-4602-b13f-d92ffe2a0bb6" />    
+
+By using this step, I loaded the single-cell RNA-seq dataset into an AnnData object using Scanpy. The dataset is stored in .h5ad format, which efficiently contains gene expression data along with metadata and analysis results. The file already includes precomputed PCA and UMAP embeddings, allowing immediate visualization and downstream analysis without repeating computationally intensive steps.
+
+```bash
+# Importing the batch-corrected single-cell RNA-seq data (GSE183276) 
+# The 'harmony_corrected' suffix indicates that batch effects between samples have been removed.
+GSE183276_harmony_adata = ad.read_h5ad("D:/Bidya Work/single/GSE183276/output/04_GSE183276_harmony_corrected.h5ad")
+GSE183276_harmony_adata
+```
+<img width="1100" height="231" alt="image" src="https://github.com/user-attachments/assets/82adc0b8-1773-45ce-ae46-3eded9f8635d" />    
+
+This step loads the batch-corrected single-cell RNA-seq dataset into an AnnData object. The data has been processed using Harmony, a method for correcting batch effects across multiple samples. This dataset has been batch-corrected using Harmony to remove technical variation between samples on R previously (refer the pipeline). This allows cells to cluster based on true biological similarities rather than experimental differences, improving the accuracy of downstream analysis.
+
+```bash
+import pandas as pd
+import numpy as np
+
+# 1. Load the external UMAP coordinates ( exported from Seurat in R)
+# Setting index_col=0 ensures the cell barcodes are used as the index for matching
+umap_df = pd.read_csv(
+    "D:/Bidya Work/single/GSE183276/GSE183276_umap_coordinates.csv",
+    index_col=0
+)
+
+# 2. Verify dimensions: ensure the number of cells (5405) and coordinates (2) match expectations
+print(umap_df.shape)   # should be (5405, 2)
+
+# 3. Align and inject coordinates into the AnnData object
+# We use .loc[GSE183276_harmony_adata.obs_names] to ensure the UMAP rows 
+# match the exact order of cells in our AnnData object.
+GSE183276_harmony_adata.obsm['X_umap'] = umap_df.loc[
+    GSE183276_harmony_adata.obs_names
+].values
+
+# 4. Visualize the data using the newly injected Seurat UMAP coordinates
+sc.pl.umap(
+    GSE183276_harmony_adata,
+    color='seurat_clusters',
+    show=True
+)
+```
+<img width="763" height="454" alt="image" src="https://github.com/user-attachments/assets/1db538a4-fd43-47a2-a10a-a75112c3a881" />    
+
 
 
 

@@ -1275,11 +1275,16 @@ sc.pl.umap(
     show=True
 )
 ```
-<img width="763" height="454" alt="image" src="https://github.com/user-attachments/assets/1db538a4-fd43-47a2-a10a-a75112c3a881" />    
+<img width="763" height="454" alt="image" src="https://github.com/user-attachments/assets/1db538a4-fd43-47a2-a10a-a75112c3a881" />   
+I took 5,405 cells → reduced them into 2D → and found 20 biologically meaningful groups.     
+This visualization reveals the cellular heterogeneity within the dataset. Distinct clusters likely correspond to different:    
+Cell types (e.g., immune cells, epithelial cells)    
+Cellular states (e.g., activated vs resting cells)    
+Biological conditions or subpopulations    
+Each point corresponds to a single cell profiled using single-cell RNA sequencing. Cells with similar gene expression profiles cluster together in the 2D space, Distinct colors represent different Seurat clusters, A total of 20 clusters are observed, indicating strong cellular heterogeneity within the dataset.    
 
-
-
-
+Well-separated clusters indicate strong transcriptional differences, while closely positioned clusters may represent related cell types or transitional states.
+UMAP coordinates generated in Seurat (R) were imported and added to the Scanpy AnnData object. The coordinates were aligned using cell barcodes to ensure correct mapping between datasets. Instead of recomputing UMAP in Scanpy, previously generated coordinates were reused to maintain consistency with earlier analysis. UMAP projection reduces high-dimensional gene expression data into a 2D space, allowing visualization of cellular relationships. UMAP was stored in .obsm['X_umap'], following Scanpy’s standard data structure. Proper alignment ensures that  biologically meaningful clusters (e.g., cell types or states) are accurately represented.
 
 
 

@@ -1515,7 +1515,9 @@ I performed a compositional analysis to compare how different cell types are dis
 First, I counted the number of cells belonging to each predicted cell type (majority_voting) within each condition. This gave a raw count of how many cells of each type are present per condition. Next, I converted these counts into percentages (proportions) so that conditions with different total cell numbers could be fairly compared.    
 After that, I calculated the average proportion of each cell type across all conditions to determine an order for plotting. This helps visualize the most abundant cell types first. Finally, I created a grouped bar plot to compare cell type proportions across conditions and saved both the figure and the processed data table.   
 
-<img width="1919" height="484" alt="image" src="https://github.com/user-attachments/assets/84249c3b-90b9-41b0-bf91-9647a9df6053" />
+<img width="1919" height="484" alt="image" src="https://github.com/user-attachments/assets/84249c3b-90b9-41b0-bf91-9647a9df6053" />    
+
+<img width="499" height="652" alt="image" src="https://github.com/user-attachments/assets/07e62053-ba8a-465a-ba2b-9ff6161c66c5" />
 
 Across the four conditions (Healthy, AKI, DKD, and HCKD), clear differences in cell type composition are observed. In Healthy samples, the distribution of major kidney cell populations is more balanced, with relatively stable proportions across epithelial and vascular compartments. In contrast, disease conditions (AKI and DKD) show noticeable shifts in cellular composition, particularly in epithelial populations such as proximal tubule and related tubular subtypes, which display altered proportions compared to Healthy. Immune-related cell types (such as B cells and dendritic cells) appear more prominent in AKI and DKD, suggesting increased immune involvement in disease states. Endothelial and vascular-associated populations also show variability across conditions, indicating possible structural or functional changes in the kidney microenvironment. HCKD generally shows an intermediate pattern between Healthy and disease conditions, suggesting a partial transition in cellular composition.
 
@@ -1632,125 +1634,71 @@ unique_markers.to_csv("Unique_cluster_markers.csv", index=False)
 ```
 I identified the top 3 most specific marker genes for each cell type using a differential gene expression approach based on the Wilcoxon rank-sum test. The analysis was performed on the CellTypist-annotated labels (majority_voting) to find genes that are significantly enriched in one cell type compared to all others, using thresholds for statistical significance (adjusted p-value < 0.05) and expression strength (log fold change > 0.25). I also ensured that each gene is unique to a single cell type so that only truly specific markers are retained. After generating the results, I cleaned the group names using pattern matching to remove any duplicated condition suffixes that may have been introduced during label creation, making the group names consistent and readable. Finally, I reviewed the output and saved the final list of unique marker genes to a CSV file for further analysis and validation.
 
-group	names	scores	logfoldchanges	pvals	pvals_adj
-B cells_AKI	ZBP1	7.7790956	6.9424624	7.30E-15	2.85E-13
-B cells_AKI	LAX1	3.7706156	6.5906067	0.000162845	0.001405513
-B cells_AKI	PKHD1L1	4.754852	6.4255958	1.99E-06	2.59E-05
-B cells_DKD	AMPD1	3.9359863	6.573179	8.29E-05	0.003040879
-B cells_DKD	KLHL6	3.267116	5.4909997	0.001086491	0.026465319
-B cells_DKD	PAIP2B	3.2524571	3.3869874	0.001144118	0.027582983
-C-TAL_AKI	F11	3.256313	3.6992922	0.001128692	0.028033158
-C-TAL_AKI	SLC43A1	3.1999738	3.370751	0.001374401	0.032750587
-C-TAL_AKI	PLIN5	3.1011202	2.1485775	0.0019279	0.043422655
-C-TAL_DKD	CRIP3	3.1278963	4.0012465	0.001760623	0.03970941
-C-TAL_DKD	EPHB3	4.673127	3.8338046	2.97E-06	0.000151947
-C-TAL_DKD	IFITM10	4.172555	3.3305976	3.01E-05	0.001236778
-C-TAL_Healthy	TMEM207	3.2756994	5.2436395	0.001054007	0.038425666
-C-TAL_Healthy	TYRP1	4.3241687	4.687409	1.53E-05	0.001187455
-C-TAL_Healthy	PADI2	3.5044506	4.5801315	0.00045755	0.01984972
-CCD-IC-A_AKI	SLC4A1	3.9026814	7.2938976	9.51E-05	0.034003795
-CCD-IC-A_AKI	STAC2	3.8410594	5.6064887	0.000122504	0.039494466
-CCD-IC-A_HCKD	SLC4A9	3.3438087	5.0653105	0.000826367	0.026434101
-CCD-IC-A_HCKD	SPINK1	3.5247483	4.769466	0.000423885	0.015522321
-CCD-IC-A_HCKD	SMIM11	4.8572664	3.697851	1.19E-06	0.000121545
-CNT_AKI	OLFM4	5.0755215	5.5195756	3.86E-07	4.67E-05
-CNT_AKI	TRPV6	4.1134315	3.741538	3.90E-05	0.002404205
-CNT_AKI	PDE3B	4.089885	3.656684	4.32E-05	0.002599321
-CNT_DKD	AVPR1A	4.624638	4.782246	3.75E-06	0.000499444
-CNT_HCKD	KLK1	6.056342	8.011798	1.39E-09	2.08E-06
-CNT_Healthy	NR4A3	5.7324014	7.1417565	9.90E-09	2.58E-06
-CNT_Healthy	CBARP	3.8922062	6.257115	9.93E-05	0.007526702
-CNT_Healthy	RGS7	3.538762	4.988282	0.000402008	0.022255275
-DCT_AKI	CACNB4	4.0703316	3.9610598	4.69E-05	0.006224927
-DCT_DKD	SCUBE3	4.509354	4.687725	6.50E-06	0.000516496
-DCT_DKD	CNNM2	3.550719	2.6036608	0.00038418	0.015520136
-DCT_DKD	SAMD5	3.3363764	2.4099529	0.000848781	0.029498608
-DCT_Healthy	CS	4.0953817	2.8999643	4.21E-05	0.008025094
-DC_AKI	JAML	3.8705451	9.546774	0.000108592	0.005175285
-DC_AKI	CLEC12A	3.409146	8.906689	0.000651666	0.023343547
-DC_AKI	FCN1	5.2251205	8.728201	1.74E-07	1.73E-05
-DC_DKD	CLEC5A	5.1806192	9.068993	2.21E-07	2.07E-05
-DC_DKD	FPR1	4.2763467	8.434021	1.90E-05	0.001010918
-DC_DKD	BCL2A1	5.838649	8.179882	5.26E-09	7.43E-07
-DC_Healthy	CXCL3	4.0909886	6.8231945	4.30E-05	0.029426939
-EC-AEA_DKD	EXOC6	3.2731724	2.6737707	0.001063476	0.041632569
-EC-AEA_DKD	ARHGEF2	3.372307	2.4004426	0.000745413	0.031168919
-EC-AEA_Healthy	IGF2	3.4762037	6.0416703	0.000508566	0.040201171
-EC-AEA_Healthy	CLIC3	5.33011	5.6703863	9.82E-08	3.10E-05
-EC-AEA_Healthy	PCSK5	4.927151	5.328278	8.34E-07	0.000201746
-EC-DVR_DKD	EPHA3	4.9151826	6.3070097	8.87E-07	5.25E-05
-EC-DVR_DKD	RSPO3	4.7285266	6.294366	2.26E-06	0.000123127
-EC-DVR_DKD	LEF1	3.1820378	4.8559585	0.001462428	0.035256942
-EC-DVR_HCKD	TMEM100	3.1983788	7.360402	0.001382026	0.044208712
-EC-DVR_HCKD	ANGPTL2	5.8108234	6.156403	6.22E-09	1.16E-06
-EC-DVR_HCKD	MERTK	3.4121554	3.6397297	0.000644513	0.024305252
-EC-DVR_Healthy	EGR3	4.665658	8.566116	3.08E-06	0.00162054
-EC-GC_Healthy	SLC6A4	3.095456	5.4404497	0.001965106	0.031770176
-EC-GC_Healthy	C3orf70	3.086585	5.223278	0.0020247	0.032605408
-EC-GC_Healthy	PNMT	4.2343216	5.1483393	2.29E-05	0.000613878
-EC-PTC_AKI	ACKR1	3.04455	5.1902895	0.002330287	0.025357105
-EC-PTC_AKI	SELE	3.1603153	5.0002003	0.001575985	0.018209662
-EC-PTC_AKI	TLL1	3.0375757	4.8934836	0.002384894	0.025865717
-EC-PTC_DKD	DIPK2B	3.1186619	6.302956	0.001816743	0.018303237
-EC-PTC_DKD	CCL14	8.342739	5.965272	7.26E-17	4.93E-15
-EC-PTC_DKD	GASK1B	5.231766	5.397422	1.68E-07	4.09E-06
-EC-PTC_Healthy	P2RY8	3.5555449	4.7403154	0.000377197	0.008507359
-EC-PTC_Healthy	HRCT1	5.154279	4.5250316	2.55E-07	1.20E-05
-EC-PTC_Healthy	SIK1	3.3646	3.9383934	0.000766547	0.015734791
-M-TAL_HCKD	HSPB7	4.4210234	5.196622	9.82E-06	0.001161996
-M-TAL_HCKD	SMTNL2	3.9722726	3.4740372	7.12E-05	0.006502825
-M-TAL_HCKD	KLHL21	3.7304158	3.4579444	0.000191164	0.015038838
-PC_DKD	SNTG1	2.7775366	6.0030575	0.005477266	0.02270159
-PC_DKD	NPAP1	8.132547	5.342042	4.20E-16	1.44E-14
-PC_DKD	ADAM23	4.4436626	5.2226024	8.84E-06	7.46E-05
-PC_Healthy	NR4A2	4.5289774	6.7646585	5.93E-06	0.01624191
-PT_AKI	BPI	3.562517	8.924921	0.000367316	0.003901431
-PT_AKI	NEU4	2.7352748	5.8185596	0.00623282	0.044096399
-PT_AKI	MYH8	3.9256678	5.5769696	8.65E-05	0.001074063
-PT_DKD	CPNE6	3.1163287	7.760722	0.00183118	0.020879516
-PT_DKD	CYP4A22	4.404202	5.984129	1.06E-05	0.000216858
-PT_DKD	CYP4F2	3.7273457	5.7213225	0.000193507	0.002976279
-PT_Healthy	NECAB2	3.3906822	5.8410473	0.000697189	0.025305038
-PT_Healthy	GLTPD2	3.3668978	5.4531484	0.000760188	0.027112838
-PT_Healthy	SLC2A5	3.5742037	4.7655973	0.000351295	0.014122238
-Podocytes_AKI	CFAP45	4.756307	7.9613976	1.97E-06	0.000255261
-Podocytes_AKI	RAET1E	3.6607733	7.6909027	0.000251455	0.017668492
-Podocytes_AKI	ARMH4	6.173078	7.1128135	6.70E-10	1.66E-07
-Podocytes_DKD	DYNC1I1	4.506371	6.2736874	6.59E-06	0.000467362
-Podocytes_DKD	ROBO2	4.1154475	4.956113	3.86E-05	0.002293744
-Podocytes_DKD	MRC2	4.9108562	4.8677516	9.07E-07	7.69E-05
-Podocytes_Healthy	FAM180A	3.7614634	8.79511	0.000168922	0.004747724
-Podocytes_Healthy	TENM2	6.428754	8.013069	1.29E-10	1.21E-08
-Podocytes_Healthy	TRIM54	4.2729216	7.0855713	1.93E-05	0.000703355
-VSMC/P_AKI	CSPG4	4.944611	6.2130637	7.63E-07	8.83E-05
-VSMC/P_AKI	EMILIN1	5.952921	6.1954465	2.63E-09	4.81E-07
-VSMC/P_AKI	HIGD1B	3.7017596	5.9383945	0.00021411	0.011734629
-VSMC/P_DKD	ANO3	3.3042755	6.2755885	0.000952222	0.038657865
-VSMC/P_DKD	NTRK3	4.3102603	5.9207444	1.63E-05	0.001213155
-VSMC/P_DKD	C7	3.251078	5.7928987	0.001149683	0.044477862
-VSMC/P_Healthy	LUM	5.066742	7.8942547	4.05E-07	9.24E-05
-VSMC/P_Healthy	FBLN1	4.7273946	6.67382	2.27E-06	0.00039779
-VSMC/P_Healthy	SERPINF1	4.2023687	6.3777423	2.64E-05	0.003298148
-aPT_AKI	CXCL6	4.5889053	5.0292416	4.46E-06	0.000276459
-aPT_AKI	ALKAL2	3.624824	4.4414783	0.000289158	0.009904879
-aPT_AKI	CXCL1	6.0619936	4.417215	1.34E-09	1.78E-07
-aPT_DKD	FCAMR	4.4851527	4.490539	7.29E-06	0.000328217
-aPT_DKD	NKAIN4	7.6674347	4.2655277	1.75E-14	3.29E-12
-aPT_DKD	CLRN3	3.880832	3.7088532	0.0001041	0.0034758
-aTAL_AKI	LRG1	3.842552	2.926761	0.000121762	0.004570785
-aTAL_DKD	SERPINA3	3.3319745	4.851973	0.000862322	0.008414418
-aTAL_DKD	RAET1L	2.7996254	4.1598926	0.005116194	0.037041157
-aTAL_DKD	GABRP	4.178764	3.6230526	2.93E-05	0.000462044
-dATL_HCKD	SH3GL3	3.1782722	5.7000446	0.001481555	0.044778917
-dATL_HCKD	WNT7B	4.938295	5.347863	7.88E-07	5.97E-05
-dATL_HCKD	TMEM86A	3.8309906	3.6350484	0.000127628	0.005339609
+<img width="542" height="681" alt="image" src="https://github.com/user-attachments/assets/3cc71771-3f76-4b0d-a4d5-932c86a95aba" />    
+This table shows the top 3 most specific marker genes identified for each cell type across different conditions (Healthy, AKI, DKD, HCKD). Each row represents a gene that is strongly and uniquely expressed in a particular cell population.    
 
+```bash
+import pandas as pd
+import scanpy as sc
+import matplotlib.pyplot as plt
+import numpy as np
 
+# 1. Subset Data: Remove specific populations (e.g., Classical monocytes) 
+# that might be redundant or distracting in this specific visualization.
+excluded_prefixes = ["Classical monocytes"]
+mask = ~GSE183276_raw_adata.obs['majority_voting'].str.startswith(tuple(excluded_prefixes))
+adata_to_plot = GSE183276_raw_adata[mask].copy()
 
+# 2. Filter Gene List: Ensure all selected markers actually exist in the matrix.
+genes_to_plot = unique_markers["names"].tolist()  # top 3 per group
+genes_to_plot = [g for g in genes_to_plot if g in adata_to_plot.var_names]
 
+# 3. Data Transformation: Convert sparse matrix to dense array for calculation.
+# This allows us to perform group-wise summation of gene expression.
+X = adata_to_plot[:, genes_to_plot].X
+if hasattr(X, "toarray"):  # sparse -> dense
+    X = X.toarray()
 
+# 4. Aggregation: Create a summary table of gene expression per cell-type group.
+expr_df = pd.DataFrame(X, index=adata_to_plot.obs['majority_voting'], columns=genes_to_plot)
+expr_per_group = expr_df.groupby(expr_df.index).sum()  # rows = groups, columns = genes
 
+# 5. Stringent Filtering: Keep only genes with substantial total signal (sum >= 30).
+# This removes "weak" markers that might be significant but aren't visually clear.
+genes_filtered = expr_per_group.columns[(expr_per_group.max(axis=0) >= 30)].tolist()
+expr_per_group = expr_per_group[genes_filtered]
 
+# 6. Group Filtering: Ensure each group shown has a minimum total expression signal.
+valid_groups = expr_per_group.index[(expr_per_group.sum(axis=1) > 20)].tolist()
+adata_to_plot = adata_to_plot[adata_to_plot.obs['majority_voting'].isin(valid_groups)].copy()
+
+# 7. Dot Plot Visualization:
+# standard_scale='var' normalizes color from 0 to 1 for each gene, making it
+# easier to see where each gene is uniquely "turned on."
+sc.pl.dotplot(
+    adata_to_plot,
+    var_names=genes_filtered,
+    groupby='majority_voting',
+    standard_scale='var',
+    show=False,
+    figsize=(20, 20),
+    dendrogram=False
+)
+plt.savefig("D:/Bidya Work/single/GSE183276/plots/celltypist_plots/Cluster_Markergenes.png", dpi=300, bbox_inches='tight')
+plt.show()
+```
+I created a dot plot to visualize how strongly the selected marker genes are expressed across different CellTypist-annotated cell types.
+First, I removed a few cell populations (such as Classical monocytes) that were not relevant for this specific visualization and could make the plot harder to interpret. Then, I selected the list of top marker genes identified earlier and ensured that only genes present in the dataset were used. Next, I extracted the gene expression matrix for these markers and converted it into a usable format for analysis. I then grouped the expression values by cell type and calculated the total expression of each gene within each group. This helped summarize how strongly each marker gene is expressed in each cell population.    
+To improve clarity, I filtered out genes with weak overall expression and also removed cell groups with very low total expression. This ensured that only meaningful and visually interpretable signals were included in the final plot. Finally, I used a dot plot to visualize the results, where each dot represents the expression level of a gene in a specific cell type. The values were normalized to make it easier to compare patterns across genes and cell types.    
+
+<img width="949" height="911" alt="image" src="https://github.com/user-attachments/assets/4cead082-d64f-4d8f-89fe-26743f91afe7" />
+
+This dot plot visualizes the expression of selected top marker genes across all CellTypist-annotated cell types and conditions. Each row represents a cell type–condition combination (e.g., PT_AKI, B cells_DKD), and each column represents a marker gene identified from the previous differential expression analysis. The size of each dot indicates the fraction of cells expressing a gene in that group, while the color intensity represents the average expression level.
+
+```bash
+GSE183276_raw_adata.write("D:/Bidya Work/single/GSE183276/output/GSE183276_celltypist.h5ad")
+```
+I saved the final processed AnnData object (GSE183276_raw_adata) as an .h5ad file using Scanpy’s built-in write function. This file contains all important results from the analysis pipeline, including normalized data, PCA embeddings, clustering results, CellTypist annotations, and metadata such as cell type labels and conditions. I saved the final processed dataset so I can reload it later without repeating the entire analysis and easily continue working from this point. 
 
 
 

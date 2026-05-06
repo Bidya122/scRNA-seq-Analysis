@@ -16,8 +16,12 @@ This dataset enables:
 
 
 I begin by loading the .rds file, which stores the single-cell dataset (typically a Seurat object) including expression matrices and prior preprocessing steps.
-Alongside this, I import the metadata file containing cell-wise annotations (e.g., sample origin, condition labels, batch information), which is essential for downstream grouping, visualization, and biological interpretation.
-The code to do so on Linux is given here but could be also done on R in the command platform. 
+Alongside this, I import the metadata file containing cell-wise annotations (e.g., sample origin, condition labels, batch information), which is essential for downstream grouping, visualization, and biological interpretation. 
+The code to do so on Linux is given here but could be also done on R in the command platform.     
+
+ [Click to view .RMD file](https://github.com/Bidya122/scRNA-seq-Analysis/blob/main/scRNAseq%20Bidya.Rmd)
+
+ 
 ```bash
 wget https://ftp.ncbi.nlm.nih.gov/geo/series/GSE183nnn/GSE183276/suppl/GSE183276_Kidney_Healthy-Injury_Cell_Atlas_scCv3_Counts_03282022.RDS.gz
 https://ftp.ncbi.nlm.nih.gov/geo/series/GSE183nnn/GSE183276/suppl/GSE183276%5FKidney%5FHealthy%2DInjury%5FCell%5FAtlas%5FscCv3%5FMetadata%5F03282022.txt.gz
@@ -1162,6 +1166,8 @@ jupyter notebook
 <img width="602" height="447" alt="image" src="https://github.com/user-attachments/assets/a9af4fd6-3da1-42d5-89ea-264ff85a296a" />    
 
 The notebook interface will open in a web browser, where you can create and run notebooks using the configured environment. Select the environment you just created as the kernel. 
+
+ [Click to view python script file](https://github.com/Bidya122/scRNA-seq-Analysis/blob/main/02_scRNAseq_Bidya.ipynb)
 ```bash
 import celltypist  ## Import celltypist to perform automated cell type annotation using pre-trained models
 import scanpy as sc   ## Import scanpy, the primary toolkit for analyzing single-cell RNA-seq data in Python

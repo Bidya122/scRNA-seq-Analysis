@@ -1355,27 +1355,399 @@ This step provides a high-level census of predicted cell identities, summarizing
 <img width="408" height="130" alt="image" src="https://github.com/user-attachments/assets/71cf29e7-8281-4ad1-b03f-caa83399e6f1" />    
 
 ```bash
+import os
 import matplotlib.pyplot as plt
+import scanpy as sc
+
+# Create output directory if it doesn't exist
+out_dir = "D:/Bidya Work/single/GSE183276/plots/celltypist_plots/"
+os.makedirs(out_dir, exist_ok=True)
+
 # Iterate through each unique group in the 'Condition' column
 for cond in GSE183276_harmony_adata.obs['Condition'].unique():
-   # Generate a UMAP plot for a subset of the data belonging to the current condition
+
+    # Generate a UMAP plot for a subset of the data belonging to the current condition
+    adata_subset = GSE183276_harmony_adata[
+        GSE183276_harmony_adata.obs['Condition'] == cond
+    ]
+
     fig = sc.pl.umap(
-        GSE183276_harmony_adata[
-            GSE183276_harmony_adata.obs['Condition'] == cond
-        ],
+        adata_subset,
         color='majority_voting',   # Color cells by CellTypist predicted labels
         title=f'Condition: {cond}',   # Dynamically set the title
         legend_loc='right margin',
         show=False,         # Don't show immediately so we can save it first
-        return_fig=True      # Capture the figure object for saving
+        return_fig=True     # Capture the figure object for saving
     )
-    plt.savefig(
-        "D:/Bidya Work/single/GSE183276/plots/celltypist_plots/umap_celltypes_ct_{cond}.png",
+
+    # Save the figure for each condition
+    fig.savefig(
+        os.path.join(out_dir, f"umap_celltypes_ct_{cond}.png"),
         dpi=300,
         bbox_inches='tight'
     )
+
+    # Show the plot
     plt.show()
+
+    # Close figure to free memory
+    plt.close(fig)
 ```
+To investigate how predicted cell types are distributed across experimental conditions, I generated UMAP embeddings separately for each condition using CellTypist majority-voted labels. For each condition, the dataset was subset based on the Condition metadata field, and cell identities were visualized in UMAP space using the majority_voting annotations as the color key. This approach enables direct comparison of cellular composition and structure across biological conditions. 
+
+<img width="1114" height="611" alt="image" src="https://github.com/user-attachments/assets/f741e0c4-8c17-4cb6-9171-c826a46186a8" />    
+
+<img width="1129" height="612" alt="image" src="https://github.com/user-attachments/assets/25493e74-a564-4989-b4f4-ceb5af48a324" />    
+
+<img width="1132" height="617" alt="image" src="https://github.com/user-attachments/assets/e1ec8fe9-486a-42fd-a5b7-9bca93bd9ba7" />    
+
+<img width="1105" height="618" alt="image" src="https://github.com/user-attachments/assets/e0a11d94-9909-4e5c-9201-a3f9cee0a17d" />    
+
+Across all four conditions, major cell populations (e.g., tubular, endothelial, and immune cells) form well-separated and consistent clusters in UMAP space. This indicates that the integration and annotation pipeline preserved biologically meaningful structure across datasets. Immune populations (e.g., B cells, dendritic cells) appear: More prominent in AKI and DKD, Less abundant in Healthy. This pattern is consistent with immune activation or infiltration during kidney injury and disease progression.  
+The UMAP analysis reveals that kidney disease conditions (AKI and DKD) are associated with shifts in cellular composition particularly increased immune cell representation and changes in epithelial cell states, while the overall cellular architecture remains conserved.
+
+```bash
+# Verify that the variable is a valid AnnData object.
+# This confirms the data was loaded correctly into the Scanpy-compatible format.
+print(type(GSE183276_harmony_adata))
+```
+Verified that the dataset is a valid AnnData object to ensure compatibility with Scanpy-based single-cell analysis workflows. <img width="306" height="33" alt="image" src="https://github.com/user-attachments/assets/c2a94b2d-322d-4135-8558-71bb9d56c798" />    
+
+```bash
+##This block of code is a troubleshooting and refinement step. You are renaming your coordinates to follow Scanpy’s naming conventions 
+##and then re-running the clustering to ensure the automated annotation tool (CellTypist) has the best possible input.
+import scanpy as sc
+import celltypist
+
+# 1. Standardize coordinate naming
+# Scanpy functions look for 'X_pca' by default. This clones the existing 'PCA' 
+# slot into 'X_pca' to ensure compatibility with downstream tools.
+GSE183276_raw_adata.obsm['X_pca'] = GSE183276_raw_adata.obsm['PCA']
+
+# 2. Re-calculate clusters for annotation
+# We build a new neighborhood graph from the PCA and use high-resolution 
+# Leiden clustering (over-clustering) to create fine-grained groups for prediction.
+sc.pp.neighbors(GSE183276_raw_adata, use_rep='X_pca')
+sc.tl.leiden(GSE183276_raw_adata, resolution=10, key_added='ct_clusters')
+
+# 3. Perform automated cell type annotation
+# CellTypist uses the model to predict labels and then 'smoothes' those 
+# labels by applying a majority vote within each 'ct_cluster'.
+GSE183276_predictions3 = celltypist.annotate(
+    GSE183276_raw_adata, 
+    model="D:/Bidya Work/single/GSE183276/Adult_Human_Kidney.pkl",
+    majority_voting=True,
+    over_clustering='ct_clusters'
+)
+
+# 4. Finalize the data object
+# Cast the predictions to strings and save them into the metadata (.obs) 
+# for easy plotting and data export.
+GSE183276_raw_adata.obs["majority_voting"] = GSE183276_predictions3.predicted_labels["majority_voting"].astype(str)
+
+print("Annotation complete!")
+```
+<img width="568" height="169" alt="image" src="https://github.com/user-attachments/assets/a083bb38-8ceb-4a8a-af08-311ac70d497d" />    
+
+The PCA renaming step was necessary to make sure Scanpy functions work correctly without errors or inconsistencies. I used high-resolution clustering because it creates smaller, more detailed groups of cells. This helps separate closely related or rare cell populations, which might get merged if clustering is too coarse. Using CellTypist allowed me to automatically assign biological cell type labels instead of manually identifying them, which saves time and improves consistency. The majority voting step helps reduce noise from individual cell predictions and produces more stable and reliable labels.   
+
+The initial CellTypist annotation was performed on earlier clustering results. However, since annotation quality depends on how well cells are grouped, I re-ran the process after improving the clustering. In this step, I used high-resolution Leiden clustering to create smaller and more homogeneous clusters. This improves the accuracy of CellTypist predictions, especially when using majority voting, which relies on cluster-level agreement. As a result, the second annotation provides more reliable and biologically meaningful cell type labels.I basically refined my clustering to create detailed groups of cells and then used CellTypist to assign reliable cell type labels, making the dataset ready for meaningful biological analysis.    
+
+```bash
+##This code performs a compositional analysis, which is a fancy way of saying it calculates which cell types are increasing or decreasing between your experimental conditions.
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Step 1: Quantify the number of cells for each cell type within each condition
+# This creates a summary table of raw counts
+n_cells_condition = (
+    GSE183276_raw_adata.obs
+    .groupby(["Condition", "majority_voting"])
+    .size()
+    .reset_index(name="count")
+)
+
+# Step 2: Normalize counts to percentages (Proportions)
+# This allows for fair comparison even if one condition has more total cells than another
+n_cells_condition["total"] = n_cells_condition.groupby("Condition")["count"].transform("sum")
+n_cells_condition["proportion"] = (n_cells_condition["count"] / n_cells_condition["total"]) * 100
+
+# Step 3: Sort cell types by abundance
+# We find the average percentage of each cell type across all conditions to order the plot
+avg_proportions = (
+    n_cells_condition
+    .groupby("majority_voting")["proportion"]
+    .mean()
+    .sort_values(ascending=False)
+)
+ordered_celltypes = avg_proportions.index.tolist()
+
+# Step 4: Generate the Bar Plot
+# 'dodge=True' places the condition bars side-by-side for easy comparison
+plt.figure(figsize=(40, 10))
+ax = sns.barplot(
+    data=n_cells_condition,
+    x="majority_voting",
+    y="proportion",
+    hue="Condition",
+    order=ordered_celltypes,
+    dodge=True,
+    width=0.9
+)
+
+# Step 5: Add percentage labels above the bars
+# This makes the exact values readable without looking at the axis
+for container in ax.containers:
+    ax.bar_label(container, fmt='%.1f%%', label_type='edge', padding=2, fontsize=10, rotation = 90)
+
+# Customize axes
+plt.xticks(rotation=45, ha="right", fontsize=12, fontweight="bold")
+plt.ylabel("Proportion (%)", fontsize=12, fontweight="bold")
+plt.xlabel("Cell Type", fontsize=12, fontweight="bold")
+plt.title("Cell Type Proportions", fontsize=14, fontweight="bold")
+plt.tight_layout()
+plt.savefig("D:/Bidya Work/single/GSE183276/plots/celltypist_plots/Cellproportions_barplot.png", dpi=300, bbox_inches='tight')
+plt.show()
+
+n_cells_condition.to_csv("Cellproportions.csv", index=False)
+```
+I performed a compositional analysis to compare how different cell types are distributed across experimental conditions (Healthy, AKI, DKD, HCKD).    
+First, I counted the number of cells belonging to each predicted cell type (majority_voting) within each condition. This gave a raw count of how many cells of each type are present per condition. Next, I converted these counts into percentages (proportions) so that conditions with different total cell numbers could be fairly compared.    
+After that, I calculated the average proportion of each cell type across all conditions to determine an order for plotting. This helps visualize the most abundant cell types first. Finally, I created a grouped bar plot to compare cell type proportions across conditions and saved both the figure and the processed data table.   
+
+<img width="1919" height="484" alt="image" src="https://github.com/user-attachments/assets/84249c3b-90b9-41b0-bf91-9647a9df6053" />
+
+Across the four conditions (Healthy, AKI, DKD, and HCKD), clear differences in cell type composition are observed. In Healthy samples, the distribution of major kidney cell populations is more balanced, with relatively stable proportions across epithelial and vascular compartments. In contrast, disease conditions (AKI and DKD) show noticeable shifts in cellular composition, particularly in epithelial populations such as proximal tubule and related tubular subtypes, which display altered proportions compared to Healthy. Immune-related cell types (such as B cells and dendritic cells) appear more prominent in AKI and DKD, suggesting increased immune involvement in disease states. Endothelial and vascular-associated populations also show variability across conditions, indicating possible structural or functional changes in the kidney microenvironment. HCKD generally shows an intermediate pattern between Healthy and disease conditions, suggesting a partial transition in cellular composition.
+
+Overall, the results indicate that kidney disease conditions are associated with clear compositional shifts in key cell populations especially increased immune representation and altered epithelial cell proportions—highlighting disease-driven remodeling of the renal cellular landscape.    
+
+```bash
+# Create a new combined label by merging the predicted cell type with the condition.
+# Resulting format: "CellType_Condition" (e.g., "Podocyte_Healthy").
+# This is useful for performing differential expression between conditions within the same cell type.
+GSE183276_raw_adata.obs['majority_voting'] = (
+    GSE183276_raw_adata.obs['majority_voting'].astype(str)
+    + "_" +
+    GSE183276_raw_adata.obs['Condition'].astype(str)
+)
+```
+I merged cell type and condition into a single label so I can directly compare the same cell type across different disease states.     
+
+```bash
+def find_unique_markers(
+    adata, 
+    groupby='cell_type', 
+    method='wilcoxon', 
+    pval_threshold=0.05, 
+    logfc_threshold=0.25,
+    top_n=3,
+    min_cells_per_group=2
+):
+    """
+    Mimics Seurat's FindAllMarkers + filters for unique DEGs per cluster.
+    
+    Parameters:
+        adata : AnnData object
+        groupby : column in adata.obs to group cells (e.g., clusters, cell_type)
+        method : DEG test method ('wilcoxon', 't-test', 'logreg')
+        pval_threshold : adjusted p-value threshold for significance
+        logfc_threshold : log fold change threshold for filtering
+
+    Returns:
+        unique_degs_df : DataFrame of DEGs unique to each group
+    """
+
+   # 1. Quality Control: Remove groups with too few cells to ensure statistical power
+    group_counts = adata.obs[groupby].value_counts()
+    valid_groups = group_counts[group_counts >= min_cells_per_group].index.tolist()
+
+  # 2. Subset to valid data: Use .copy() to avoid modifying the original AnnData
+    adata_filtered = adata[adata.obs[groupby].isin(valid_groups)].copy()
+    
+   # 3. Differential Expression Analysis: Compute rankings for all genes across groups
+    sc.tl.rank_genes_groups(adata_filtered, groupby=groupby, method=method)
+    
+   # 4. Extract Results: Convert the structured numpy array into a tidy Pandas DataFrame
+    all_degs = sc.get.rank_genes_groups_df(adata_filtered, group=None)
+    
+   # 5. Significance Filtering: Apply adjusted p-value and log-fold change cutoffs
+    filtered_degs = all_degs[
+        (all_degs['pvals_adj'] < pval_threshold) &
+        (abs(all_degs['logfoldchanges']) > logfc_threshold)
+    ]
+
+  # 6. Exclusivity Check: Identify genes that passed filtering in ONLY ONE group.
+    # This prevents 'Pan-marker' genes (like general immune markers) from appearing.
+    unique_genes = (
+        filtered_degs.groupby('names')['group']
+        .nunique()
+        .reset_index()
+        .query('group == 1')['names']
+        .tolist()
+    )
+
+   # 7. Final Subset: Keep only the genes identified as truly unique to a cluster
+    unique_degs_df = filtered_degs[filtered_degs['names'].isin(unique_genes)].copy()
+
+
+  # 8. Representative Selection: Sort by effect size (logFC) and pick the top N per group
+    top_unique_degs_df = (
+        unique_degs_df
+        .sort_values(['group', 'logfoldchanges'], ascending=[True, False])
+        .groupby('group')
+        .head(top_n)
+        .reset_index(drop=True)
+    )
+
+    return top_unique_degs_df
+```
+I created a custom function to find marker genes for each cell group (such as cell types or clusters) using differential gene expression analysis. First, I filtered out groups with too few cells to make sure the results were statistically reliable. Then, I ran Scanpy’s differential expression test to identify genes that are differentially expressed across groups. After that, I applied filters based on statistical significance (adjusted p-value) and expression strength (log fold change) to keep only meaningful genes. To make the results more specific, I further removed genes that appeared as markers in more than one group, keeping only truly unique markers for each cell type. Finally, I selected the top few strongest markers per group to make the output easier to interpret. This was done to ensure that the final marker list is biologically meaningful, specific to each cell population, and easier to use for understanding cell identity and validating annotations.     
+
+```bash
+# 1. Identify the top 3 highly specific markers for each cell type
+# Uses the Wilcoxon rank-sum test to find genes that are significant (p < 0.05) 
+# and exclusive to only one group.unique_markers = find_unique_markers(
+    GSE183276_raw_adata, 
+    groupby='majority_voting',
+    method='wilcoxon',
+    pval_threshold=0.05, 
+    logfc_threshold=0.25,
+    top_n=3, 
+    min_cells_per_group=2
+)
+# 2. Clean up group names using Regular Expressions (Regex)
+# This removes redundant suffixes that might have been created during concatenation 
+# (e.g., changing "Podocyte_Healthy_Healthy" back to "Podocyte_Healthy").
+unique_markers['group'] = (
+    unique_markers['group']
+    .str.replace(r'_(HCKD|Healthy|AKI|DKD)_\1$', r'_\1', regex=True)
+)
+
+# 3. Validation and Export
+# Print the top results, verify unique group names, and save to a CSV file.
+print(unique_markers.head())
+unique_markers['group'].drop_duplicates()
+
+unique_markers.to_csv("Unique_cluster_markers.csv", index=False)
+```
+I identified the top 3 most specific marker genes for each cell type using a differential gene expression approach based on the Wilcoxon rank-sum test. The analysis was performed on the CellTypist-annotated labels (majority_voting) to find genes that are significantly enriched in one cell type compared to all others, using thresholds for statistical significance (adjusted p-value < 0.05) and expression strength (log fold change > 0.25). I also ensured that each gene is unique to a single cell type so that only truly specific markers are retained. After generating the results, I cleaned the group names using pattern matching to remove any duplicated condition suffixes that may have been introduced during label creation, making the group names consistent and readable. Finally, I reviewed the output and saved the final list of unique marker genes to a CSV file for further analysis and validation.
+
+group	names	scores	logfoldchanges	pvals	pvals_adj
+B cells_AKI	ZBP1	7.7790956	6.9424624	7.30E-15	2.85E-13
+B cells_AKI	LAX1	3.7706156	6.5906067	0.000162845	0.001405513
+B cells_AKI	PKHD1L1	4.754852	6.4255958	1.99E-06	2.59E-05
+B cells_DKD	AMPD1	3.9359863	6.573179	8.29E-05	0.003040879
+B cells_DKD	KLHL6	3.267116	5.4909997	0.001086491	0.026465319
+B cells_DKD	PAIP2B	3.2524571	3.3869874	0.001144118	0.027582983
+C-TAL_AKI	F11	3.256313	3.6992922	0.001128692	0.028033158
+C-TAL_AKI	SLC43A1	3.1999738	3.370751	0.001374401	0.032750587
+C-TAL_AKI	PLIN5	3.1011202	2.1485775	0.0019279	0.043422655
+C-TAL_DKD	CRIP3	3.1278963	4.0012465	0.001760623	0.03970941
+C-TAL_DKD	EPHB3	4.673127	3.8338046	2.97E-06	0.000151947
+C-TAL_DKD	IFITM10	4.172555	3.3305976	3.01E-05	0.001236778
+C-TAL_Healthy	TMEM207	3.2756994	5.2436395	0.001054007	0.038425666
+C-TAL_Healthy	TYRP1	4.3241687	4.687409	1.53E-05	0.001187455
+C-TAL_Healthy	PADI2	3.5044506	4.5801315	0.00045755	0.01984972
+CCD-IC-A_AKI	SLC4A1	3.9026814	7.2938976	9.51E-05	0.034003795
+CCD-IC-A_AKI	STAC2	3.8410594	5.6064887	0.000122504	0.039494466
+CCD-IC-A_HCKD	SLC4A9	3.3438087	5.0653105	0.000826367	0.026434101
+CCD-IC-A_HCKD	SPINK1	3.5247483	4.769466	0.000423885	0.015522321
+CCD-IC-A_HCKD	SMIM11	4.8572664	3.697851	1.19E-06	0.000121545
+CNT_AKI	OLFM4	5.0755215	5.5195756	3.86E-07	4.67E-05
+CNT_AKI	TRPV6	4.1134315	3.741538	3.90E-05	0.002404205
+CNT_AKI	PDE3B	4.089885	3.656684	4.32E-05	0.002599321
+CNT_DKD	AVPR1A	4.624638	4.782246	3.75E-06	0.000499444
+CNT_HCKD	KLK1	6.056342	8.011798	1.39E-09	2.08E-06
+CNT_Healthy	NR4A3	5.7324014	7.1417565	9.90E-09	2.58E-06
+CNT_Healthy	CBARP	3.8922062	6.257115	9.93E-05	0.007526702
+CNT_Healthy	RGS7	3.538762	4.988282	0.000402008	0.022255275
+DCT_AKI	CACNB4	4.0703316	3.9610598	4.69E-05	0.006224927
+DCT_DKD	SCUBE3	4.509354	4.687725	6.50E-06	0.000516496
+DCT_DKD	CNNM2	3.550719	2.6036608	0.00038418	0.015520136
+DCT_DKD	SAMD5	3.3363764	2.4099529	0.000848781	0.029498608
+DCT_Healthy	CS	4.0953817	2.8999643	4.21E-05	0.008025094
+DC_AKI	JAML	3.8705451	9.546774	0.000108592	0.005175285
+DC_AKI	CLEC12A	3.409146	8.906689	0.000651666	0.023343547
+DC_AKI	FCN1	5.2251205	8.728201	1.74E-07	1.73E-05
+DC_DKD	CLEC5A	5.1806192	9.068993	2.21E-07	2.07E-05
+DC_DKD	FPR1	4.2763467	8.434021	1.90E-05	0.001010918
+DC_DKD	BCL2A1	5.838649	8.179882	5.26E-09	7.43E-07
+DC_Healthy	CXCL3	4.0909886	6.8231945	4.30E-05	0.029426939
+EC-AEA_DKD	EXOC6	3.2731724	2.6737707	0.001063476	0.041632569
+EC-AEA_DKD	ARHGEF2	3.372307	2.4004426	0.000745413	0.031168919
+EC-AEA_Healthy	IGF2	3.4762037	6.0416703	0.000508566	0.040201171
+EC-AEA_Healthy	CLIC3	5.33011	5.6703863	9.82E-08	3.10E-05
+EC-AEA_Healthy	PCSK5	4.927151	5.328278	8.34E-07	0.000201746
+EC-DVR_DKD	EPHA3	4.9151826	6.3070097	8.87E-07	5.25E-05
+EC-DVR_DKD	RSPO3	4.7285266	6.294366	2.26E-06	0.000123127
+EC-DVR_DKD	LEF1	3.1820378	4.8559585	0.001462428	0.035256942
+EC-DVR_HCKD	TMEM100	3.1983788	7.360402	0.001382026	0.044208712
+EC-DVR_HCKD	ANGPTL2	5.8108234	6.156403	6.22E-09	1.16E-06
+EC-DVR_HCKD	MERTK	3.4121554	3.6397297	0.000644513	0.024305252
+EC-DVR_Healthy	EGR3	4.665658	8.566116	3.08E-06	0.00162054
+EC-GC_Healthy	SLC6A4	3.095456	5.4404497	0.001965106	0.031770176
+EC-GC_Healthy	C3orf70	3.086585	5.223278	0.0020247	0.032605408
+EC-GC_Healthy	PNMT	4.2343216	5.1483393	2.29E-05	0.000613878
+EC-PTC_AKI	ACKR1	3.04455	5.1902895	0.002330287	0.025357105
+EC-PTC_AKI	SELE	3.1603153	5.0002003	0.001575985	0.018209662
+EC-PTC_AKI	TLL1	3.0375757	4.8934836	0.002384894	0.025865717
+EC-PTC_DKD	DIPK2B	3.1186619	6.302956	0.001816743	0.018303237
+EC-PTC_DKD	CCL14	8.342739	5.965272	7.26E-17	4.93E-15
+EC-PTC_DKD	GASK1B	5.231766	5.397422	1.68E-07	4.09E-06
+EC-PTC_Healthy	P2RY8	3.5555449	4.7403154	0.000377197	0.008507359
+EC-PTC_Healthy	HRCT1	5.154279	4.5250316	2.55E-07	1.20E-05
+EC-PTC_Healthy	SIK1	3.3646	3.9383934	0.000766547	0.015734791
+M-TAL_HCKD	HSPB7	4.4210234	5.196622	9.82E-06	0.001161996
+M-TAL_HCKD	SMTNL2	3.9722726	3.4740372	7.12E-05	0.006502825
+M-TAL_HCKD	KLHL21	3.7304158	3.4579444	0.000191164	0.015038838
+PC_DKD	SNTG1	2.7775366	6.0030575	0.005477266	0.02270159
+PC_DKD	NPAP1	8.132547	5.342042	4.20E-16	1.44E-14
+PC_DKD	ADAM23	4.4436626	5.2226024	8.84E-06	7.46E-05
+PC_Healthy	NR4A2	4.5289774	6.7646585	5.93E-06	0.01624191
+PT_AKI	BPI	3.562517	8.924921	0.000367316	0.003901431
+PT_AKI	NEU4	2.7352748	5.8185596	0.00623282	0.044096399
+PT_AKI	MYH8	3.9256678	5.5769696	8.65E-05	0.001074063
+PT_DKD	CPNE6	3.1163287	7.760722	0.00183118	0.020879516
+PT_DKD	CYP4A22	4.404202	5.984129	1.06E-05	0.000216858
+PT_DKD	CYP4F2	3.7273457	5.7213225	0.000193507	0.002976279
+PT_Healthy	NECAB2	3.3906822	5.8410473	0.000697189	0.025305038
+PT_Healthy	GLTPD2	3.3668978	5.4531484	0.000760188	0.027112838
+PT_Healthy	SLC2A5	3.5742037	4.7655973	0.000351295	0.014122238
+Podocytes_AKI	CFAP45	4.756307	7.9613976	1.97E-06	0.000255261
+Podocytes_AKI	RAET1E	3.6607733	7.6909027	0.000251455	0.017668492
+Podocytes_AKI	ARMH4	6.173078	7.1128135	6.70E-10	1.66E-07
+Podocytes_DKD	DYNC1I1	4.506371	6.2736874	6.59E-06	0.000467362
+Podocytes_DKD	ROBO2	4.1154475	4.956113	3.86E-05	0.002293744
+Podocytes_DKD	MRC2	4.9108562	4.8677516	9.07E-07	7.69E-05
+Podocytes_Healthy	FAM180A	3.7614634	8.79511	0.000168922	0.004747724
+Podocytes_Healthy	TENM2	6.428754	8.013069	1.29E-10	1.21E-08
+Podocytes_Healthy	TRIM54	4.2729216	7.0855713	1.93E-05	0.000703355
+VSMC/P_AKI	CSPG4	4.944611	6.2130637	7.63E-07	8.83E-05
+VSMC/P_AKI	EMILIN1	5.952921	6.1954465	2.63E-09	4.81E-07
+VSMC/P_AKI	HIGD1B	3.7017596	5.9383945	0.00021411	0.011734629
+VSMC/P_DKD	ANO3	3.3042755	6.2755885	0.000952222	0.038657865
+VSMC/P_DKD	NTRK3	4.3102603	5.9207444	1.63E-05	0.001213155
+VSMC/P_DKD	C7	3.251078	5.7928987	0.001149683	0.044477862
+VSMC/P_Healthy	LUM	5.066742	7.8942547	4.05E-07	9.24E-05
+VSMC/P_Healthy	FBLN1	4.7273946	6.67382	2.27E-06	0.00039779
+VSMC/P_Healthy	SERPINF1	4.2023687	6.3777423	2.64E-05	0.003298148
+aPT_AKI	CXCL6	4.5889053	5.0292416	4.46E-06	0.000276459
+aPT_AKI	ALKAL2	3.624824	4.4414783	0.000289158	0.009904879
+aPT_AKI	CXCL1	6.0619936	4.417215	1.34E-09	1.78E-07
+aPT_DKD	FCAMR	4.4851527	4.490539	7.29E-06	0.000328217
+aPT_DKD	NKAIN4	7.6674347	4.2655277	1.75E-14	3.29E-12
+aPT_DKD	CLRN3	3.880832	3.7088532	0.0001041	0.0034758
+aTAL_AKI	LRG1	3.842552	2.926761	0.000121762	0.004570785
+aTAL_DKD	SERPINA3	3.3319745	4.851973	0.000862322	0.008414418
+aTAL_DKD	RAET1L	2.7996254	4.1598926	0.005116194	0.037041157
+aTAL_DKD	GABRP	4.178764	3.6230526	2.93E-05	0.000462044
+dATL_HCKD	SH3GL3	3.1782722	5.7000446	0.001481555	0.044778917
+dATL_HCKD	WNT7B	4.938295	5.347863	7.88E-07	5.97E-05
+dATL_HCKD	TMEM86A	3.8309906	3.6350484	0.000127628	0.005339609
+
+
+
+
 
 
 

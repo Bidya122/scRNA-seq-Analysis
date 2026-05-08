@@ -1412,6 +1412,8 @@ To investigate how predicted cell types are distributed across experimental cond
 Across all four conditions, major cell populations (e.g., tubular, endothelial, and immune cells) form well-separated and consistent clusters in UMAP space. This indicates that the integration and annotation pipeline preserved biologically meaningful structure across datasets. Immune populations (e.g., B cells, dendritic cells) appear: More prominent in AKI and DKD, Less abundant in Healthy. This pattern is consistent with immune activation or infiltration during kidney injury and disease progression.  
 The UMAP analysis reveals that kidney disease conditions (AKI and DKD) are associated with shifts in cellular composition particularly increased immune cell representation and changes in epithelial cell states, while the overall cellular architecture remains conserved.
 
+NOTE: In this workflow, both Harmony-integrated and Scanpy-standard AnnData objects were explored. However, all downstream analyses (UMAP visualization, CellTypist annotation, and compositional analysis) are fully compatible with the Harmony-integrated object. The use of a separate raw_adata object was primarily for format standardization and pipeline testing, and was not required for biological interpretation.
+
 ```bash
 # Verify that the variable is a valid AnnData object.
 # This confirms the data was loaded correctly into the Scanpy-compatible format.

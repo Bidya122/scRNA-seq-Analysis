@@ -1888,7 +1888,7 @@ After defining the differential expression analysis function, I executed it on t
 During execution, the function processed each CellTypist-annotated cell type individually and checked whether sufficient numbers of DKD and Healthy cells were available for reliable differential expression analysis. Cell types with too few cells in either comparison group were automatically skipped to avoid statistically unreliable results. Only cell populations that passed the minimum cell count threshold were analyzed using the MAST method, and the resulting differential expression outputs were saved as separate CSV files for downstream pathway enrichment analysis.
 After applying the filtering criteria and minimum cell count threshold, a total of eight cell populations contained sufficient DKD and Healthy cells for reliable differential expression analysis. Differentially expressed gene (DEG) results were successfully generated for the following cell types: C-TAL, CNT, DCT, EC-GC, EC-PTC, Podocytes, PT, and VSMC/P. Separate DEG result files were saved for each cell population for downstream functional enrichment and pathway analysis.
 
-# Cell Type DEG Analysis
+# Summerization of DEG Results
 ```bash
 library(clusterProfiler)
 library(ReactomePA)
@@ -1978,6 +1978,187 @@ write.csv(
   row.names = FALSE
 )
 ```
+<img width="810" height="282" alt="image" src="https://github.com/user-attachments/assets/c7062608-151f-4d6a-a673-afb80cff1bbb" />    
+
+I performed a cell type–resolved differential expression summary analysis to quantify transcriptional changes between DKD and Healthy kidney samples using previously generated MAST-based DEG results. The main objective was to move from gene-level differential expression outputs to a higher-level view of how strongly each renal cell type is affected in disease.    
+All DEG result files were systematically aggregated and standardized to ensure consistent formatting across cell types before analysis. Only results with validated MAST output structure were included to maintain reliability. For each cell type, I focused on significantly differentially expressed genes based on a consistent threshold (adjusted p-value < 0.05), while also distinguishing the direction of change to capture both upregulated and downregulated transcriptional shifts in DKD. The key decision in this step was to prioritize a uniform statistical cutoff and apply it across all cell types, enabling fair comparison of DEG burden rather than gene-specific interpretation. This allowed identification of cell populations with the strongest transcriptional perturbations in DKD. Cell type identities were programmatically extracted from filenames to ensure traceability and reproducibility without manual annotation.    
+Finally, I generated a consolidated summary table ranking cell types based on total differential expression load. This provides a comparative landscape of disease impact across renal compartments and serves as a foundation for downstream visualization and pathway-level interpretation.  
+
+From the results, epithelial and tubular compartments show the strongest transcriptional perturbation, with EC_PTC exhibiting the highest number of DEGs, followed by C_TAL and CNT, indicating these segments are major contributors to DKD-associated molecular changes. In contrast, cell types like DCT and Podocytes show minimal differential expression under the same thresholds, suggesting either lower transcriptional responsiveness or more stable gene regulation in the dataset context.    
+Importantly, separating upregulated and downregulated genes helps capture not just disease intensity but also directionality of transcriptional remodeling, highlighting whether DKD is associated with activation or suppression of gene programs in each cell type.    
+
+# Cell type–resolved Reactome pathway enrichment analysis using ranked gene lists (GSEA framework)
+```bash
+all_pathways_df <- data.frame()  # Create empty dataframe to store Reactome pathway enrichment results from ALL cell types together
+
+for (file_path in deg_files) {
+
+  file_name <- basename(file_path)     # DEG_Podocyte_DKD_vs_Healthy.csv
+  message("\n==============================")     # Print separator for cleaner console output
+  message("▶ Processing file: ", file_name)    # Print currently processed DEG file
+
+  ### Extract cell type name from file name,  # Removes: "DEG_" and "_DKD_vs_Healthy.csv", leaving only cell type name
+  celltype <- sub("^DEG_(.*?)_DKD_vs_Healthy\\.csv$", "\\1", file_name)
+
+  if (celltype == file_name) {    # If extraction failed, celltype remains identical to original file name
+    warning("⚠ Celltype extraction FAILED for file: ", file_name)
+    next
+  }
+
+  celltype_clean <- gsub("[^a-zA-Z0-9]", "_", celltype)    # Clean special characters from cell type name
+  condition <- "DKD_vs_Healthy"   # Store biological comparison label
+
+  message("  ✔ Cell type identified: ", celltype)   # Print extracted cell type
+
+  ### ---- Read DEG file ----
+  res <- tryCatch(     # tryCatch prevents entire pipeline from crashing if one file is corrupted or unreadable
+    read.csv(file_path, stringsAsFactors = FALSE),    # Read DEG CSV file
+    error = function(e) {    # Error handling function
+      message(" Failed to read file: ", e$message)  # Print error message
+      return(NULL)   # Return NULL instead of crashing
+    }
+  )
+  if (is.null(res)) next    # Skip file if reading failed
+
+  message("  ✔ DEG rows read: ", nrow(res))      # Print number of DEG rows loaded
+
+    # Verify required DEG columns exist
+  # gene = gene symbols
+  # avg_log2FC = fold-change ranking metric
+  if (!all(c("gene", "avg_log2FC") %in% colnames(res))) {
+    warning("  ⚠ Missing required columns in: ", file_name)
+    next
+  }
+
+ # Convert Gene SYMBOLs → ENTREZ IDs
+    # Reactome enrichment requires ENTREZ IDs instead of gene symbols
+  ncbi_map <- suppressMessages(
+    clusterProfiler::bitr(
+      res$gene,                     # Input gene symbols
+      fromType = "SYMBOL",          # Current gene ID type
+      toType = "ENTREZID",          # Desired gene ID type
+      OrgDb = org.Hs.eg.db         # Human annotation database
+    )
+  )
+
+  message("  ✔ Genes mapped to ENTREZ: ", nrow(ncbi_map))    # Print number of successfully mapped genes
+  
+   # --------------------------------------------------
+  # Merge DEG table with ENTREZ mapping
+  # -------------------------------------------------- 
+
+  res_mapped <- res %>%
+    left_join(ncbi_map, by = c("gene" = "SYMBOL")) %>%     # Match DEG genes with ENTREZ IDs
+    filter(!is.na(ENTREZID)) %>%          # Remove genes without ENTREZ mapping
+    distinct(ENTREZID, .keep_all = TRUE)
+
+  message(" Genes after filtering: ", nrow(res_mapped))   # Print remaining usable genes
+
+  # --------------------------------------------------
+  # Create ranked gene list for GSEA
+  # --------------------------------------------------
+  # GSEA requires: named numeric vector
+    # Values = fold changes
+    # Names = ENTREZ IDs
+
+
+  gene_list <- res_mapped$avg_log2FC
+  names(gene_list) <- res_mapped$ENTREZID      # Assign ENTREZ IDs as vector names
+  
+  # Sort genes from highest positive logFC to most negative logFC
+  # Highly positive genes: upregulated in DKD
+  # Highly negative genes: downregulated in DKD
+  gene_list <- sort(gene_list, decreasing = TRUE)
+
+  message("  ✔ Ranked gene list length: ", length(gene_list))     # Print gene list size
+  
+ # GSEA becomes unreliable with very small gene sets
+  if (length(gene_list) < 20) {
+    message("  ⏭ Skipping GSEA: too few genes")
+    next
+  }
+
+ # --------------------------------------------------
+  # Run Reactome pathway GSEA
+  # --------------------------------------------------
+   # GSEA asks: "Are genes from specific pathways enriched at the top or bottom of the ranked DEG list?"
+#Positive NES: pathway activated/upregulated in DKD
+# Negative NES: pathway suppressed/downregulated in DKD
+
+  message(" Running Reactome GSEA...")
+
+  gsea_res <- tryCatch(
+    gsePathway(
+      geneList = gene_list,     # Ranked gene list
+      organism = "human",       # Human Reactome pathways
+      eps = 0,                  # More precise p-value estimation
+      verbose = FALSE             # Suppress verbose output
+    ),
+    error = function(e) {     # Handle GSEA errors safely
+      message("  GSEA FAILED: ", e$message)
+      return(NULL)
+    }
+  )
+
+  if (is.null(gsea_res) || nrow(gsea_res@result) == 0) {
+    message("  ⏭ No significant pathways")
+    next
+  }
+
+##### Convert ENTREZ IDs back into readable gene names
+  gsea_res <- setReadable(
+    gsea_res,    # GSEA object
+    OrgDb = org.Hs.eg.db,  # Human annotation database
+    keyType = "ENTREZID"     # Original ID type
+  )
+  
+ ## Extract clean pathway result table
+  pathways <- gsea_res@result %>%   # Remove incomplete/invalid pathways
+    filter(
+      !is.na(Description),
+      !is.na(NES),
+      !is.na(p.adjust),
+      !is.na(setSize)
+    )
+
+  message(" Valid pathways: ", nrow(pathways)) # Print number of valid pathways
+
+  if (nrow(pathways) == 0) next  # Skip empty pathway tables
+
+  ##  # Add metadata columns
+  pathways$CellType  <- celltype
+  pathways$Condition <- condition
+
+  all_pathways_df <- rbind(all_pathways_df, pathways)    # Combine current pathway results with master pathway dataframe
+
+  ## ---- Save per-cell CSV ----
+  out_csv <- file.path(    # Save pathway enrichment results for current cell type
+    deg_path,
+    paste0(celltype_clean, "_Reactome_GSEA_", condition, ".csv")
+  )
+  write.csv(pathways, out_csv, row.names = FALSE)
+
+  message("  ✔ GSEA CSV written for ", celltype)
+}
+```
+<img width="1048" height="513" alt="image" src="https://github.com/user-attachments/assets/8ba84191-851c-42e1-a6a2-6fe43f145a50" />
+
+I performed a cell type–specific pathway enrichment analysis using Reactome Gene Set Enrichment Analysis (GSEA) to interpret the biological processes underlying differential gene expression in DKD vs Healthy kidney samples. Instead of focusing only on individual differentially expressed genes, I extended the analysis to pathway-level interpretation to understand coordinated functional changes across renal cell types. For each cell type, DEG results were first read and filtered to ensure the presence of required gene identifiers and fold-change values. Gene symbols were converted to Entrez IDs to ensure compatibility with Reactome pathway annotations, as pathway databases require standardized identifiers for enrichment mapping. Only successfully mapped genes were retained to maintain annotation accuracy.  
+A ranked gene list was then constructed using log fold-change values, where genes were ordered from most upregulated to most downregulated in DKD. This ranking strategy was chosen because GSEA does not rely on hard significance cutoffs but instead evaluates whether genes from a pathway are systematically enriched at the top or bottom of the ranked list. This allows detection of subtle but coordinated pathway-level changes that may not be captured by threshold-based DEG filtering.   
+Reactome GSEA was performed separately for each cell type to preserve cell type–specific biological signals. Robust error handling was included to ensure that individual file failures or insufficient gene sets did not interrupt the full pipeline. Finally, all pathway enrichment results were consolidated into a single dataset while also exporting individual cell type–specific outputs. This structure enables both global comparison across renal cell types and focused interpretation of pathway dysregulation within specific compartments.    
+
+<img width="422" height="126" alt="image" src="https://github.com/user-attachments/assets/31b9cc08-0c67-4edd-a8d7-163cc3c4d007" /> 
+<img width="478" height="120" alt="image" src="https://github.com/user-attachments/assets/9043d535-318a-4776-9b9d-bf67bc5d7439" />  
+<img width="508" height="120" alt="image" src="https://github.com/user-attachments/assets/acd6a3bd-ce29-4b64-aba8-8ef64dc553b6" />
+<img width="453" height="121" alt="image" src="https://github.com/user-attachments/assets/a1d21a2a-61c2-4730-8b32-9dddc5c539ef" /> 
+<img width="357" height="73" alt="image" src="https://github.com/user-attachments/assets/1ebdb5d9-9604-4fa1-8c3c-e747e593addf" />
+
+I performed Reactome-based GSEA across all cell type–specific DEG files to interpret functional pathway-level changes in DKD vs Healthy kidney samples. Although the analysis was applied uniformly to all cell types, only a subset of them produced significant pathway enrichment results after filtering for mapping success, gene list quality, and adjusted p-value thresholds. This was mainly due to differences in DEG burden across cell types and the loss of genes during Entrez ID conversion, which reduced the effective input size for some populations. As a result, only cell types with stronger and more coordinated transcriptional signals contributed meaningful pathway enrichment outputs. This indicates that pathway-level biological changes in DKD are not uniform across all renal compartments but are instead driven by specific cell populations showing higher transcriptional perturbation.    
+
+<img width="1897" height="208" alt="image" src="https://github.com/user-attachments/assets/199b8ed9-4171-42c3-bab0-f426e8f5ea20" />    
+
+# Reactome GSEA Pathway Visualization
+
 
 
 

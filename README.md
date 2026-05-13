@@ -1708,12 +1708,276 @@ GSE183276_raw_adata.write("D:/Bidya Work/single/GSE183276/output/GSE183276_cellt
 ```
 I saved the final processed AnnData object (GSE183276_raw_adata) as an .h5ad file using Scanpy’s built-in write function. This file contains all important results from the analysis pipeline, including normalized data, PCA embeddings, clustering results, CellTypist annotations, and metadata such as cell type labels and conditions. I saved the final processed dataset so I can reload it later without repeating the entire analysis and easily continue working from this point. 
 
+Following cell type annotation and marker gene visualization, downstream pathway enrichment analysis was performed to better understand the biological functions associated with the identified marker genes. This step helped me to interpret how different cell populations contribute to disease-associated molecular pathways and cellular processes.  
+The marker genes identified from the differential expression analysis were therefore used for pathway and functional enrichment analysis in R.    
+
+# Installation of other packages for this workflow
+```bash
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")
+BiocManager::install("reactome.db")
+```
+I did not have to download each and every package separately, since the main stack of tools required for the analysis had already been installed during the initial setup of the workflow. Only the remaining packages needed for downstream analysis were installed here.   
+
+# Setting working directories and the needed libraries
+```bash
+setwd("D:/Bidya Work/single/GSE183276")
+inputDir <- "D:/Bidya Work/single/GSE183276/input"
+outputDir <- "D:/Bidya Work/single/GSE183276/output"
+plotDir <- "D:/Bidya Work/single/GSE183276/plots"
+library(zellkonverter)
+library(SingleCellExperiment)
+library(Seurat)
+library(MAST)
+library(tidyverse)
+```
+
+# Uploading the required files/datasets
+```
+sce <- readH5AD("D:/Bidya Work/single/GSE183276/output/GSE183276_celltypist.h5ad") ## readH5AD() converts it into a SingleCellExperiment (SCE) object in R
+
+####you will see some messages like:
+#ℹ Using stored X_name value 'counts'
+#<sys>:0: FutureWarning: Use varm (e.g. `k in adata.varm` or `adata.varm.keys() | {'u'}`) instead of AnnData.varm_keys, AnnData.varm_keys is deprecated and will be removed in the future.
+#<sys>:0: FutureWarning: Use obsm (e.g. `k in adata.obsm` or `adata.obsm.keys() | {'u'}`) instead of AnnData.obsm_keys, AnnData.obsm_keys is deprecated and will be removed in the future.
+
+seurat_obj <- as.Seurat(sce, counts = "counts", data = "logcounts")  # Convert the SingleCellExperiment object into a Seurat object
+
+saveRDS(seurat_obj, "D:/Bidya Work/single/GSE183276/output/GSE183276_with_celltypist.rds") # Save the Seurat object as an .rds file. saveRDS() stores the object in compressed R format, so you can reload it later without repeating conversion steps
+```
+I loaded the processed .h5ad file generated from the Scanpy workflow into R using readH5AD(), which converted the dataset into a SingleCellExperiment object. I then converted this object into a Seurat object using as.Seurat() so the dataset could be used for downstream analysis and visualization in R. Finally, I saved the Seurat object as an .rds file using saveRDS() to allow easy reloading of the processed dataset in future sessions without repeating the conversion steps.
+
+# Cleaning and standardizing Annotations
+```bash
+colnames(seurat_obj@meta.data)
+# Create a contingency table between:
+# rows   = disease condition
+# columns = predicted cell types from CellTypist
+table(seurat_obj$Condition, seurat_obj$majority_voting)  
+
+#This cleans cell type names so disease status and cell identity are separated properly.
+seurat_obj$majority_voting <- gsub("_(AKI|DKD|HCKD|Healthy)$", "", seurat_obj$majority_voting) # Remove disease suffixes from CellTypist labels
+
+table(seurat_obj$Condition, seurat_obj$majority_voting)  # Recheck the table after cleaning
+
+# If suffixes are still present in some labels, run the gsub() command one more time.
+```
+<img width="1258" height="278" alt="image" src="https://github.com/user-attachments/assets/e6aed588-e00e-412d-a13c-5a1a06cb211a" />    
+
+<img width="1194" height="632" alt="image" src="https://github.com/user-attachments/assets/6c095239-c140-4f5c-afd6-f5bc7bc8c35a" />  
 
 
+I first examined the metadata columns in the Seurat object and generated a contingency table to compare disease conditions with the CellTypist-predicted cell type labels. During this step, I observed that some cell type labels contained disease-specific suffixes such as _AKI, _DKD, _HCKD, and _Healthy. To ensure that cell identity and disease condition remained separate metadata fields, I cleaned the majority_voting labels using gsub() to remove these suffixes from the cell type names as shown. The contingency table was then rechecked to confirm that the labels had been cleaned correctly before proceeding with downstream analysis. 
+
+# Preparaing cell type lables
+```bash
+DefaultAssay(seurat_obj) <- "originalexp"  ## The default assay tells Seurat which expression matrix should be used for downstream functions by default.
+# Here, we are choosing the original expression data.
+
+celltypes <- sort(unique(seurat_obj$majority_voting)) # Extract all unique cell type names from the metadata column "majority_voting"
+celltypes
+
+celltypes <- gsub("-", "_", celltypes)  # Replace hyphens (-) with underscores (_)
+celltypes
+```
+<img width="1145" height="75" alt="image" src="https://github.com/user-attachments/assets/c599c5cc-a30b-42c0-8093-26ff9f583906" />
+
+I set the default assay of the Seurat object to originalexp so that downstream analyses would use the original expression matrix by default. Next, I extracted all unique CellTypist-predicted cell type labels from the majority_voting metadata column and sorted them for easier handling in downstream analyses. Finally, I replaced hyphens (-) with underscores (_) in the cell type names to maintain consistent formatting and avoid potential issues during file naming, plotting, or automated analysis steps.    
+
+# Cell Type-Specific Differential Expression Analysis Using MAST 
+```bash
+#DKD vs Healthy: What changes in diabetic kidney disease?
+#AKI vs Healthy: What changes during acute kidney injury?
+#HCKD vs Healthy: What changes in chronic kidney disease?
+#DKD vs AKI: What makes diabetic kidney disease different from acute kidney injury?
 
 
+run_mast_per_celltype_DKD_vs_Healthy <- function(    ##unction to perform cell type–specific differential expression analysis
+# between DKD and Healthy samples using the MAST statistical method
+  seu,
+  celltype_col = "majority_voting",     # apna annotation column
+  condition_col = "Condition",   
+  outdir = "D:/Bidya Work/single/GSE183276/output/DEG_MAST_DKD_vs_Healthy",
+  min_cells_per_group = 20   # Minimum number of cells required in each condition to perform DEG analysis reliably
+) {
 
+  dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 
+  meta <- seu@meta.data   # Extract metadata from Seurat object
+  celltypes <- sort (unique(meta[[celltype_col]]))    # Get all unique cell types present in the dataset and sort them alphabetically
+
+  for (ct in celltypes) {     # Loop through each cell type one by one; Take each value from celltypes one by one, and temporarily store it in a variable called ct
+
+    cat("\n▶ Processing cell type:", ct, "\n") ##cat() means concatenate and print.
+
+    cells_ct <- rownames(meta)[meta[[celltype_col]] == ct]      # Identify cells belonging only to the current cell type
+    cond_tab <- table(meta[cells_ct, condition_col]) # counts ALL conditions that exist within that cell type.
+    print(cond_tab)
+    
+    ##now we are seeing if the two required conditions by us are present in all the cell types or not
+
+    # Check whether both groups exist ---If either DKD or Healthy cells are absent, skip this cell type because comparison is impossible
+    if (!all(c("DKD", "Healthy") %in% names(cond_tab))) {
+      cat("  ❌ DKD Or Healthy missing → skipping\n")
+      next
+    }
+
+    # # ---- Minimum cell count check --Skip analysis if either condition has fewer cells than the defined threshold. 
+    if (any(cond_tab[c("DKD", "Healthy")] < min_cells_per_group)) {
+      cat("  ❌ Not enough cells → skipping\n") 
+      next
+    }
+
+   
+    seu_ct <- subset(seu, cells = cells_ct)      # Create a new Seurat object containing only cells from the current cell type
+    DefaultAssay(seu_ct) <- "originalexp"     # Set assay to original expression matrix
+    seu_ct <- NormalizeData(seu_ct, verbose = FALSE)       # Normalize expression data Required before running DEG analysis
+
+    Idents(seu_ct) <- condition_col    # Set cell identities based on condition. This tells Seurat which groups to compare
+
+    # # ---- Run MAST differential expression analysis ----
+     # ident.1 = DKD group #ident.2 = Healthy group
+    deg <- FindMarkers(
+      seu_ct,
+      ident.1 = "DKD",
+      ident.2 = "Healthy",
+      test.use = "MAST",
+      logfc.threshold = 0,   # -> tests all genes regardless of fold change
+      min.pct = 0.1,        # -> gene must be expressed in at least 10% of cells
+      latent.vars = c("nCount_RNA", "percent.mt")   # latent.vars-> adjusts for technical confounders:
+    #    nCount_RNA = sequencing depth
+    #    percent.mt = mitochondrial gene percentage
+
+    )
+
+    deg$gene <- rownames(deg)    # Add gene names as a separate column
+
+    # 🔥 CRITICAL FIX (THIS LINE SOLVES YOUR ERROR)
+    ct_clean <- gsub("[^a-zA-Z0-9]", "_", ct)    # Prevents file path and naming errors Clean cell type names for safe file creation
+    # Replaces spaces/special characters with underscores
+    # Prevents file path and naming errors
+
+    out_file <- file.path(outdir, paste0("DEG_", ct_clean, "_DKD_vs_Healthy.csv"))
+
+    write.csv(deg, out_file, row.names = FALSE)
+
+    cat("  ✔ Saved:", out_file, "\n")
+  }
+}
+```
+
+Among the different disease comparisons available in the dataset, I initially focused on the DKD vs Healthy comparison to identify transcriptional changes specifically associated with diabetic kidney disease. Comparing diseased samples directly against healthy controls provides a clearer baseline for understanding disease-related molecular alterations within each cell type.
+Before performing differential expression analysis, several quality checks and filtering steps were applied to ensure reliable statistical results. For each CellTypist-annotated cell population, I first verified that both DKD and Healthy cells were present. Cell types lacking one of the comparison groups were excluded since meaningful differential analysis would not be possible. I also applied a minimum cell count threshold of 20 minimum cells per group to ensure that each condition contained enough cells for statistically robust testing.
+Only cell populations that passed these criteria were included in the downstream MAST-based differential expression analysis. The resulting differentially expressed genes were then saved separately for each cell type for further functional and pathway enrichment analysis. Differential expression analysis was performed using the MAST statistical method through Seurat’s FindMarkers() function. Although methods such as Wilcoxon rank-sum testing can also be used for differential expression analysis, MAST was selected because it is specifically designed for single-cell RNA-seq data.
+Single-cell datasets are typically sparse and contain a large number of zero expression values (“dropouts”), along with substantial cell-to-cell variability. MAST accounts for these characteristics more effectively by modeling both gene detection and expression levels, making it more suitable for identifying biologically meaningful differential expression patterns in single-cell data. In addition, technical confounding factors such as sequencing depth (nCount_RNA) and mitochondrial gene percentage (percent.mt) were included as latent variables during the analysis to reduce technical bias. 
+
+# Run the DEG function created above
+```bash
+run_mast_per_celltype_DKD_vs_Healthy(
+  seu = seurat_obj,
+  celltype_col = "majority_voting",   
+  condition_col = "Condition"
+)
+```
+After defining the differential expression analysis function, I executed it on the Seurat object to perform cell type–specific differential expression analysis between DKD and Healthy samples. The analysis used the majority_voting metadata column for CellTypist-based cell type annotations and the Condition column to define the disease groups for comparison. The function automatically processed each cell type individually and generated separate differential expression result files for downstream pathway and functional enrichment analysis. 
+
+<img width="895" height="477" alt="image" src="https://github.com/user-attachments/assets/a5d308bc-d3c1-475b-8ab1-67b0579b8501" />    
+
+<img width="776" height="689" alt="image" src="https://github.com/user-attachments/assets/762eba37-215e-465b-832a-dec66eee0226" />
+
+During execution, the function processed each CellTypist-annotated cell type individually and checked whether sufficient numbers of DKD and Healthy cells were available for reliable differential expression analysis. Cell types with too few cells in either comparison group were automatically skipped to avoid statistically unreliable results. Only cell populations that passed the minimum cell count threshold were analyzed using the MAST method, and the resulting differential expression outputs were saved as separate CSV files for downstream pathway enrichment analysis.
+After applying the filtering criteria and minimum cell count threshold, a total of eight cell populations contained sufficient DKD and Healthy cells for reliable differential expression analysis. Differentially expressed gene (DEG) results were successfully generated for the following cell types: C-TAL, CNT, DCT, EC-GC, EC-PTC, Podocytes, PT, and VSMC/P. Separate DEG result files were saved for each cell population for downstream functional enrichment and pathway analysis.
+
+# Cell Type DEG Analysis
+```bash
+library(clusterProfiler)
+library(ReactomePA)
+library(tidyverse)
+library(org.Hs.eg.db)
+library(dplyr)
+library(ggplot2)
+library(enrichplot)
+
+deg_path <- "D:/Bidya Work/single/GSE183276/output/DEG_MAST_DKD_vs_Healthy"   ##Define folder containing DEG result files generated from MAST analysis
+
+deg_files <- list.files(    ### list.files() scans the folder and retrieves: files beginning with "DEG_" and ending with ".csv"
+  deg_path,
+  pattern = "^DEG_.*\\.csv$",
+  full.names = TRUE
+)
+
+deg_files
+
+# --------------------------------------------------
+# Fix gene column name ONLY for DEG files
+# --------------------------------------------------
+##Some exported CSV files may accidentally store gene names in unnamed column ("X" or blank). This loop standardizes the first column name to "genes"
+
+for (file in deg_files) {
+  df <- read.csv(file, header = TRUE, stringsAsFactors = FALSE)
+  
+  if (colnames(df)[1] %in% c("", "X")) { ## # Check whether first column name is missing or "X"
+    colnames(df)[1] <- "genes"
+  }
+  
+  write.csv(df, file, row.names = FALSE)
+}
+# --------------------------------------------------
+# Create empty summary table for storing
+# DEG statistics across all cell types
+# --------------------------------------------------
+
+deg_summary <- data.frame(
+  CellType = character(),     # Cell type name
+  Upregulated = integer(),       # Number of significantly upregulated genes
+  Downregulated = integer(),     # Number of significantly downregulated genes
+  Total_DEGs = integer(),     # Total significant DEGs
+  stringsAsFactors = FALSE
+)
+# --------------------------------------------------
+# Loop through each DEG file
+# and calculate DEG statistics
+# --------------------------------------------------
+
+for (file in deg_files) {      # Read DEG result file
+  deg_data <- read.csv(file)
+  
+  if (!all(c("avg_log2FC", "p_val_adj") %in% colnames(deg_data))) {       # Ensure required DEG columns exist, avg_log2FC = fold change, p_val_adj = adjusted p-value (FDR corrected)
+    warning(paste("Skipping (missing columns):", basename(file)))
+    next
+  }
+# Count significantly UPREGULATED genes
+
+  up   <- sum(deg_data$avg_log2FC > 0 & deg_data$p_val_adj < 0.05)  # log2FC > 0  → higher in DKD adjusted p-value < 0.05 → statistically significant
+  down <- sum(deg_data$avg_log2FC < 0 & deg_data$p_val_adj < 0.05)    # Count significantly DOWNREGULATED genes. log2FC < 0 → lower in DKD / higher in Healthy
+  
+  celltype <- gsub("^DEG_(.*?)_DKD_vs_Healthy\\.csv$", "\\1",     # Extract cell type name from file name basename(file))
+  
+  deg_summary <- rbind(      # Add DEG statistics into summary table
+    deg_summary,
+    data.frame(
+      CellType = celltype,
+      Upregulated = up,
+      Downregulated = down,
+      Total_DEGs = up + down
+    )
+  )
+}
+# --------------------------------------------------
+# Sort summary table by total DEG count
+# Highest DEG-containing cell types appear first
+# --------------------------------------------------
+
+deg_summary <- deg_summary %>% arrange(desc(Total_DEGs))
+
+print(deg_summary)
+
+write.csv(
+  deg_summary,
+  "D:/Bidya Work/single/GSE183276/output/DEG_MAST_DKD_vs_Healthy/DEGsummary_table.csv",
+  row.names = FALSE
+)
+```
 
 
 

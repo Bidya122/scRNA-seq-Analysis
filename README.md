@@ -2158,6 +2158,104 @@ I performed Reactome-based GSEA across all cell type–specific DEG files to int
 <img width="1897" height="208" alt="image" src="https://github.com/user-attachments/assets/199b8ed9-4171-42c3-bab0-f426e8f5ea20" />    
 
 # Reactome GSEA Pathway Visualization
+```bash
+gsea_png_files <- c()  # Create empty vector to store paths of generated GSEA pathway plot PNG files
+
+# --------------------------------------------------
+# Loop through each unique cell type present in
+# the combined pathway enrichment dataframe
+# --------------------------------------------------
+
+for (ct in unique(all_pathways_df$CellType)) {
+
+  df_ct <- all_pathways_df %>%     # Extract pathway enrichment results for current cell type only
+    filter(CellType == ct)
+
+  if (nrow(df_ct) == 0) {             # Skip plotting if no pathways exist
+    message(" No pathways to plot")
+    next
+  }
+
+  ## ---- Select top pathways ----
+    # NES = Normalized Enrichment Score
+  # Higher positive NES: pathways activated in DKD
+  # Higher negative NES: pathways suppressed in DKD
+ # abs(NES) selects strongest biological signals regardless of direction
+
+  top_pathways <- df_ct %>%
+    arrange(desc(abs(NES))) %>%     # Sort pathways by strongest enrichment magnitude
+    slice_head(n = 10)     # Keep top 10 pathways
+
+ if (nrow(top_pathways) == 0) next
+
+  # --------------------------------------------------
+  # Reorder pathway names according to NES values
+  # Improves plot readability
+  # --------------------------------------------------
+  top_pathways$Description <- factor(   # Pathways with low NES appear at bottom, Pathways with high NES appear at top
+    top_pathways$Description,
+    levels = top_pathways$Description[order(top_pathways$NES)]
+  )
+
+  # --------------------------------------------------
+  # Create pathway enrichment dot plot
+  # --------------------------------------------------
+ # x-axis: NES = enrichment direction + strength
+ # y-axis: pathway names
+ # point color: adjusted p-value significance
+ # point size: pathway gene-set size
+  p <- ggplot(
+    top_pathways,
+    aes(x = NES, y = Description, color = p.adjust, size = setSize)
+  ) +
+    geom_point() +
+    theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 7, face = "bold"),
+    axis.text.x = element_text(size = 7, face = "bold")
+  )
+  ## ---- Save PNG ----
+  ct_clean <- gsub("[^a-zA-Z0-9]", "_", ct)     # Clean cell type name for safe file naming
+ 
+  png_file <- file.path(
+    deg_path,
+    paste0(ct_clean, ".png")
+  )
+
+  png(png_file, width = 9, height = 6, units = "in", res = 300)
+  print(p)
+  dev.off()
+
+  gsea_png_files <- c(gsea_png_files, png_file)
+}
+write.csv(
+  all_pathways_df,
+  file.path(deg_path, "All_CellTypes_Reactome_GSEA_results.csv"),
+  row.names = FALSE
+)
+```
+I performed pathway-level enrichment visualization separately for each identified cell type using the combined Reactome GSEA output dataframe. First, I iterated through all unique cell types present in the enrichment results and extracted cell type–specific pathway enrichment profiles. To avoid generating empty or biologically irrelevant plots, I implemented conditional filtering steps that skipped cell types with no enriched pathways. For each cell type, pathways were ranked based on the absolute value of the Normalized Enrichment Score (NES), allowing prioritization of the strongest biological signals irrespective of enrichment direction. Positive NES values were interpreted as pathways activated in DKD, whereas negative NES values represented suppressed pathways. I selected the top 10 pathways with the highest absolute NES values to focus on the most biologically significant enrichment signatures while maintaining plot interpretability.
+To improve visualization clarity, pathway descriptions were reordered according to NES values so that negatively enriched pathways appeared at the bottom and positively enriched pathways appeared at the top of the plot. I then generated GSEA dot plots using ggplot2, where the x-axis represented NES values, the y-axis represented Reactome pathway names, point color encoded adjusted p-values (FDR-corrected significance), and point size reflected pathway gene-set size. 
+
+<img width="1129" height="915" alt="image" src="https://github.com/user-attachments/assets/26421742-90c5-4d41-b74d-146c2c39c38f" />    
+
+<img width="1106" height="871" alt="image" src="https://github.com/user-attachments/assets/970365e4-ad30-4916-8039-c7d7ca6f7dd7" />    
+
+<img width="1099" height="878" alt="image" src="https://github.com/user-attachments/assets/3bf225d9-9e63-435a-b5e8-1e30ebb59676" />    
+
+<img width="1097" height="873" alt="image" src="https://github.com/user-attachments/assets/dedd9443-eadc-4bcc-ba0f-988c28d7330b" />     
+
+<img width="1094" height="877" alt="image" src="https://github.com/user-attachments/assets/6f9f3efd-008b-4761-b360-b15933452dc8" />     
+
+<img width="1886" height="450" alt="image" src="https://github.com/user-attachments/assets/b76ce705-3881-4ba6-95db-fa85f45b5584" />     
+
+Reactome pathway enrichment analysis using ranked gene lists revealed pronounced cell type–specific functional remodeling in diabetic kidney disease (DKD) compared with healthy controls. Across tubular epithelial populations, including the cortical thick ascending limb (C_TAL), connecting tubule (CNT), distal convoluted tubule (DCT), and proximal tubule (PT), distinct patterns of transcriptional dysregulation were observed. C_TAL and CNT populations demonstrated marked suppression of neurotrophic signaling programs, including NGF-stimulated transcription, Signaling by NTRK1 (TRKA), and broader NTRK signaling pathways, together with reduced activation of nuclear transcription factor–associated processes. These findings suggest widespread attenuation of growth factor–responsive transcriptional networks and stress-adaptive signaling in tubular epithelial compartments during DKD progression.    
+In contrast, CNT cells additionally exhibited significant enrichment of extracellular matrix (ECM) organization and ECM degradation pathways, indicating concurrent activation of tissue remodeling and fibrotic processes. Similarly, DCT cells displayed selective enrichment of ECM-associated pathways, suggesting more subtle but directionally consistent matrix remodeling within distal nephron segments. In proximal tubule (PT) cells, enrichment of Golgi-associated vesicle biogenesis pathways indicated alterations in intracellular trafficking, vesicular transport, and protein-processing machinery in response to diabetic stress.    
+Among all analyzed populations, vascular smooth muscle/perivascular cells (VSMC_P) exhibited some of the most pronounced transcriptional alterations. These changes were characterized by suppression of pathways involved in elastic fibre formation, molecules associated with elastic fibres, and insulin-like growth factor (IGF) transport and uptake, alongside dysregulation of glycosaminoglycan metabolism and ECM-associated processes. Collectively, these findings indicate substantial disruption of vascular structural integrity, extracellular matrix homeostasis, and growth factor signaling within vascular compartments.    
+Overall, pathway-level analysis demonstrated that DKD induces highly compartmentalized molecular reprogramming across kidney cell populations, characterized by suppression of neurotrophic and transcription-associated signaling in tubular epithelial cells alongside extensive extracellular matrix remodeling and structural degeneration in vascular and stromal compartments. These results highlight distinct yet coordinated injury-associated functional programs contributing to DKD pathogenesis.    
+
+Overall, these findings show that DKD causes strong cell type–specific molecular changes across the kidney, marked by reduced signaling activity in tubular cells and increased extracellular matrix remodeling and structural damage in vascular compartments. These findings improve our understanding of how different kidney cell populations respond to diabetic injury at the pathway level.       
+
 
 
 

@@ -1710,6 +1710,7 @@ I saved the final processed AnnData object (GSE183276_raw_adata) as an .h5ad fil
 
 Following cell type annotation and marker gene visualization, downstream pathway enrichment analysis was performed to better understand the biological functions associated with the identified marker genes. This step helped me to interpret how different cell populations contribute to disease-associated molecular pathways and cellular processes.  
 The marker genes identified from the differential expression analysis were therefore used for pathway and functional enrichment analysis in R.    
+[Click to view script file](https://github.com/Bidya122/scRNA-seq-Analysis_kidney_disease/blob/main/03_scRNAseq_Bidya.Rmd)
 
 # Installation of other packages for this workflow
 ```bash

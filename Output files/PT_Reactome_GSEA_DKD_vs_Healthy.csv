@@ -1,0 +1,2 @@
+"ID","Description","setSize","enrichmentScore","NES","pvalue","p.adjust","qvalue","rank","leading_edge","core_enrichment","CellType","Condition"
+"R-HSA-432722","Golgi Associated Vesicle Biogenesis",43,0.573246986328891,2.02283756616144,3.50111223496742e-05,0.0346960222485271,0.0339055079596845,662,"tags=30%, list=14%, signal=26%","TPD52L1/SNAPIN/SH3GL2/AP1S1/SNX2/SORT1/DTNBP1/PIK3C2A/VAMP7/AP1G1/AP1M1/AP3B1/YIPF6","PT","DKD_vs_Healthy"
